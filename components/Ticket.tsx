@@ -44,10 +44,11 @@ export const Ticket: React.FC<TicketProps> = ({ type, data, settings, onClose })
             y += 2;
             doc.setDrawColor(0, 0, 0);
             doc.setLineWidth(0.1);
-            doc.setLineDash([1, 1], 0);
+            // Cast to any to avoid TS error: Property 'setLineDash' does not exist on type 'jsPDF'
+            (doc as any).setLineDash([1, 1], 0);
             doc.line(margin, y, width - margin, y);
             y += 4;
-            doc.setLineDash([], 0); // Reset
+            (doc as any).setLineDash([], 0); // Reset
         };
 
         const centerText = (text: string, size = 10, bold = false, font = 'helvetica') => {
