@@ -322,11 +322,14 @@ export const Ticket: React.FC<TicketProps> = ({ type, data, settings, onClose })
             const fileName = `ticket_${type}_${Date.now()}.pdf`;
             const file = new File([blob], fileName, { type: 'application/pdf' });
 
-            // Obtener DATA URI completo (data:application/pdf;base64,.....)
-            // Evolution API acepta esto en el campo "media" si no es una URL
-            dataUri = doc.output('datauristring');
+            // B. Obtener DATA URI LIMPIO
+            // CRÍTICO: jspdf.output('datauristring') puede incluir 'filename=...', lo cual ROMPE Evolution API.
+            // Extraemos solo el base64 y reconstruimos el header estándar.
+            const rawDataUri = doc.output('datauristring');
+            const base64Content = rawDataUri.split(',')[1];
+            dataUri = `data:application/pdf;base64,${base64Content}`;
 
-            // B. Intentar Subir a Supabase Storage (Opcional)
+            // C. Intentar Subir a Supabase Storage (Opcional - solo si configurado)
             try {
                 const { data: uploadData, error: uploadError } = await supabase.storage
                     .from('tickets')
@@ -343,11 +346,11 @@ export const Ticket: React.FC<TicketProps> = ({ type, data, settings, onClose })
                 // Silently fail storage, fallback to base64
             }
 
-            // C. Determinar qué enviar como "media"
-            // Si hay URL publica, usamos eso. Si no, enviamos el DataURI completo.
+            // D. Determinar qué enviar como "media"
+            // Si hay URL publica, usamos eso. Si no, enviamos el DataURI LIMPIO.
             const finalMedia = publicUrl ? publicUrl : dataUri;
 
-            // D. Preparar Payload para n8n
+            // E. Preparar Payload para n8n
             const total = type === 'SALE' ? (data as Transaction).total.toFixed(2) : '0.00';
             const docId = type === 'SALE' ? (data as Transaction).id.slice(-8).toUpperCase() : 'CIERRE';
             const fullPhone = `${countryCode}${whatsappPhone}`;
@@ -355,7 +358,7 @@ export const Ticket: React.FC<TicketProps> = ({ type, data, settings, onClose })
             let message = `Hola! 🚀\n\nAquí tienes tu comprobante digital de *${settings.name}*.\n\n📄 Ticket: #${docId}\n💰 Total: ${settings.currency} ${total}\n\nGracias por tu preferencia.`;
             
             const payload = {
-                user_phone: "51900000000", // Parametro fijo requerido por tu flujo
+                user_phone: "51900000000",
                 plan: "pro",
                 client: {
                     name: "Cliente",
@@ -368,15 +371,13 @@ export const Ticket: React.FC<TicketProps> = ({ type, data, settings, onClose })
                     number: docId,
                     message: message
                 },
-                // TRUCO PARA EVOLUTION API + N8N:
-                // Tu nodo de n8n lee $json.body.pdfUrl y lo pone en el campo "media".
-                // Evolution acepta URL o DataURI en ese campo.
-                // Así que ponemos el DataURI aquí si no hay URL.
+                // Al enviar DataURI limpio en pdfUrl, el nodo de n8n lo pasará a Evolution.
+                // Evolution detectará el header standard data:application/pdf;base64 y lo procesará.
                 pdfUrl: finalMedia, 
                 fileName: fileName
             };
 
-            // E. Enviar a Webhook
+            // F. Enviar a Webhook
             const response = await fetch('https://webhook.red51.site/webhook/send-quote-whatsapp', {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
