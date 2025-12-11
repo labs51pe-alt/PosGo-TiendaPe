@@ -322,8 +322,9 @@ export const Ticket: React.FC<TicketProps> = ({ type, data, settings, onClose })
             const fileName = `ticket_${type}_${Date.now()}.pdf`;
             const file = new File([blob], fileName, { type: 'application/pdf' });
 
-            // Obtener Base64 para fallback inmediato (evita 0KB si no hay URL)
-            pdfBase64 = doc.output('datauristring').split(',')[1];
+            // Obtener Base64 como fallback (sin prefijo data:...)
+            const dataUri = doc.output('datauristring');
+            pdfBase64 = dataUri.split(',')[1] || '';
 
             // B. Subir a Supabase Storage
             // Intentamos subirlo. Si falla (ej. no existe bucket), continuamos sin URL pero con Base64.
@@ -333,7 +334,7 @@ export const Ticket: React.FC<TicketProps> = ({ type, data, settings, onClose })
                     .upload(fileName, file);
 
                 if (uploadError) {
-                    console.warn("Supabase Upload Warning:", uploadError.message);
+                    console.warn("Supabase Upload Warning (check bucket permissions):", uploadError.message);
                 } else {
                     // C. Obtener URL Pública solo si subió
                     const { data: urlData } = supabase.storage
@@ -355,9 +356,9 @@ export const Ticket: React.FC<TicketProps> = ({ type, data, settings, onClose })
             
             let message = `Hola! 🚀\n\nAquí tienes tu comprobante digital de *${settings.name}*.\n\n📄 Ticket: #${docId}\n💰 Total: ${settings.currency} ${total}\n\nGracias por tu preferencia.`;
             
-            // Si no hay URL, el webhook usará el base64, así que el mensaje puede ser más positivo
+            // Si no hay URL, el webhook usará el base64
             if (!publicUrl) {
-                message += "\n\n(Se adjunta copia digital del comprobante).";
+                message += "\n\n(Comprobante adjunto).";
             }
 
             const payload = {
@@ -374,7 +375,9 @@ export const Ticket: React.FC<TicketProps> = ({ type, data, settings, onClose })
                     number: docId,
                     message: message
                 },
-                pdfUrl: publicUrl,
+                // IMPORTANTE: Si publicUrl está vacío, NO enviarlo o enviarlo como null para que n8n no falle intentando descargar una URL vacía.
+                // Sin embargo, si el webhook espera la key, enviamos null.
+                pdfUrl: publicUrl || null, 
                 pdfBase64: pdfBase64, // Enviamos el archivo crudo como respaldo
                 fileName: fileName
             };
@@ -391,7 +394,14 @@ export const Ticket: React.FC<TicketProps> = ({ type, data, settings, onClose })
                 setShowPhoneInput(false);
                 setWhatsappPhone('');
             } else {
-                alert("Hubo un problema al contactar con el servicio de mensajería.");
+                // Si falla, intentamos ver si devuelve mensaje de error
+                try {
+                    const errData = await response.json();
+                    console.error("Webhook Error Response:", errData);
+                    alert("Error del servicio de mensajería: " + (errData.message || "Solicitud rechazada"));
+                } catch (e) {
+                    alert("Hubo un problema al contactar con el servicio de mensajería (Error de red o servidor).");
+                }
             }
 
         } catch (error: any) {
