@@ -24,8 +24,8 @@ export const Ticket: React.FC<TicketProps> = ({ type, data, settings, onClose })
 
     const currentCountry = COUNTRIES.find(c => c.code === countryCode) || COUNTRIES[0];
 
-    // --- GENERACIÓN DE PDF PROFESIONAL ---
-    const generatePDFBlob = (): Blob => {
+    // --- GENERACIÓN DE PDF PROFESIONAL (DEVUELVE DOCUMENTO) ---
+    const createPDFDoc = (): jsPDF => {
         // Configuración: 80mm ancho, largo dinámico (usamos 297mm A4 como base, pero el contenido fluye)
         const doc = new jsPDF({
             orientation: 'portrait',
@@ -217,7 +217,12 @@ export const Ticket: React.FC<TicketProps> = ({ type, data, settings, onClose })
         y += 2;
         centerText("Powered by PosGo!", 7, true, 'courier');
 
-        return doc.output('blob');
+        return doc;
+    };
+
+    // Wrapper para compatibilidad con Share y Download
+    const generatePDFBlob = (): Blob => {
+        return createPDFDoc().output('blob');
     };
 
     // --- MANEJADORES ---
@@ -306,15 +311,22 @@ export const Ticket: React.FC<TicketProps> = ({ type, data, settings, onClose })
 
         setSendingWhatsapp(true);
         let publicUrl = '';
+        let pdfBase64 = '';
 
         try {
-            // A. Generar PDF
-            const blob = generatePDFBlob();
+            // A. Generar PDF Doc una vez
+            const doc = createPDFDoc();
+            
+            // Obtener Blob para subida
+            const blob = doc.output('blob');
             const fileName = `ticket_${type}_${Date.now()}.pdf`;
             const file = new File([blob], fileName, { type: 'application/pdf' });
 
+            // Obtener Base64 para fallback inmediato (evita 0KB si no hay URL)
+            pdfBase64 = doc.output('datauristring').split(',')[1];
+
             // B. Subir a Supabase Storage
-            // Intentamos subirlo. Si falla (ej. no existe bucket), continuamos sin PDF.
+            // Intentamos subirlo. Si falla (ej. no existe bucket), continuamos sin URL pero con Base64.
             try {
                 const { data: uploadData, error: uploadError } = await supabase.storage
                     .from('tickets')
@@ -343,14 +355,14 @@ export const Ticket: React.FC<TicketProps> = ({ type, data, settings, onClose })
             
             let message = `Hola! 🚀\n\nAquí tienes tu comprobante digital de *${settings.name}*.\n\n📄 Ticket: #${docId}\n💰 Total: ${settings.currency} ${total}\n\nGracias por tu preferencia.`;
             
-            // Si no hay URL, avisar en el mensaje
+            // Si no hay URL, el webhook usará el base64, así que el mensaje puede ser más positivo
             if (!publicUrl) {
-                message += "\n\n(Nota: El PDF adjunto no está disponible temporalmente, pero este es tu resumen oficial).";
+                message += "\n\n(Se adjunta copia digital del comprobante).";
             }
 
             const payload = {
-                user_phone: "51900000000", // Remitente genérico o del sistema
-                plan: "pro", // Para evitar footer de 'free' en n8n si aplica
+                user_phone: "51900000000",
+                plan: "pro",
                 client: {
                     name: "Cliente",
                     phone: fullPhone 
@@ -362,7 +374,9 @@ export const Ticket: React.FC<TicketProps> = ({ type, data, settings, onClose })
                     number: docId,
                     message: message
                 },
-                pdfUrl: publicUrl
+                pdfUrl: publicUrl,
+                pdfBase64: pdfBase64, // Enviamos el archivo crudo como respaldo
+                fileName: fileName
             };
 
             // E. Enviar a Webhook
@@ -373,7 +387,7 @@ export const Ticket: React.FC<TicketProps> = ({ type, data, settings, onClose })
             });
 
             if (response.ok) {
-                alert(`¡Enviado a WhatsApp exitosamente!${!publicUrl ? ' (Sin PDF adjunto)' : ''}`);
+                alert(`¡Enviado a WhatsApp exitosamente!`);
                 setShowPhoneInput(false);
                 setWhatsappPhone('');
             } else {
