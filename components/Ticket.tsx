@@ -305,6 +305,8 @@ export const Ticket: React.FC<TicketProps> = ({ type, data, settings, onClose })
         }
 
         setSendingWhatsapp(true);
+        let publicUrl = '';
+
         try {
             // A. Generar PDF
             const blob = generatePDFBlob();
@@ -312,20 +314,25 @@ export const Ticket: React.FC<TicketProps> = ({ type, data, settings, onClose })
             const file = new File([blob], fileName, { type: 'application/pdf' });
 
             // B. Subir a Supabase Storage
-            // IMPORTANTE: Requiere bucket público 'tickets'
-            const { data: uploadData, error: uploadError } = await supabase.storage
-                .from('tickets')
-                .upload(fileName, file);
+            // Intentamos subirlo. Si falla (ej. no existe bucket), continuamos sin PDF.
+            try {
+                const { data: uploadData, error: uploadError } = await supabase.storage
+                    .from('tickets')
+                    .upload(fileName, file);
 
-            if (uploadError) {
-                console.error("Supabase Storage Error:", uploadError);
-                throw new Error("No se pudo subir el archivo. Verifica que el bucket 'tickets' exista en Supabase.");
+                if (uploadError) {
+                    console.warn("Supabase Upload Warning:", uploadError.message);
+                } else {
+                    // C. Obtener URL Pública solo si subió
+                    const { data: urlData } = supabase.storage
+                        .from('tickets')
+                        .getPublicUrl(fileName);
+                    
+                    if (urlData) publicUrl = urlData.publicUrl;
+                }
+            } catch (storageError) {
+                console.warn("Error al acceder a Storage:", storageError);
             }
-
-            // C. Obtener URL Pública
-            const { data: { publicUrl } } = supabase.storage
-                .from('tickets')
-                .getPublicUrl(fileName);
 
             // D. Preparar Payload para n8n
             const total = type === 'SALE' ? (data as Transaction).total.toFixed(2) : '0.00';
@@ -333,6 +340,13 @@ export const Ticket: React.FC<TicketProps> = ({ type, data, settings, onClose })
             
             // Construir teléfono completo (Código Pais + Numero)
             const fullPhone = `${countryCode}${whatsappPhone}`;
+            
+            let message = `Hola! 🚀\n\nAquí tienes tu comprobante digital de *${settings.name}*.\n\n📄 Ticket: #${docId}\n💰 Total: ${settings.currency} ${total}\n\nGracias por tu preferencia.`;
+            
+            // Si no hay URL, avisar en el mensaje
+            if (!publicUrl) {
+                message += "\n\n(Nota: El PDF adjunto no está disponible temporalmente, pero este es tu resumen oficial).";
+            }
 
             const payload = {
                 user_phone: "51900000000", // Remitente genérico o del sistema
@@ -346,7 +360,7 @@ export const Ticket: React.FC<TicketProps> = ({ type, data, settings, onClose })
                 },
                 quote: {
                     number: docId,
-                    message: `Hola! 🚀\n\nAquí tienes tu comprobante digital de *${settings.name}*.\n\n📄 Ticket: #${docId}\n💰 Total: ${settings.currency} ${total}\n\nGracias por tu preferencia.`
+                    message: message
                 },
                 pdfUrl: publicUrl
             };
@@ -359,7 +373,7 @@ export const Ticket: React.FC<TicketProps> = ({ type, data, settings, onClose })
             });
 
             if (response.ok) {
-                alert("¡Enviado a WhatsApp exitosamente!");
+                alert(`¡Enviado a WhatsApp exitosamente!${!publicUrl ? ' (Sin PDF adjunto)' : ''}`);
                 setShowPhoneInput(false);
                 setWhatsappPhone('');
             } else {
