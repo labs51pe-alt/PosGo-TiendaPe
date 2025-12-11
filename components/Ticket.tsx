@@ -311,32 +311,28 @@ export const Ticket: React.FC<TicketProps> = ({ type, data, settings, onClose })
 
         setSendingWhatsapp(true);
         let publicUrl = '';
-        let pdfBase64 = '';
+        let dataUri = '';
 
         try {
             // A. Generar PDF Doc una vez
             const doc = createPDFDoc();
             
-            // Obtener Blob para subida
+            // Obtener Blob para subida opcional
             const blob = doc.output('blob');
             const fileName = `ticket_${type}_${Date.now()}.pdf`;
             const file = new File([blob], fileName, { type: 'application/pdf' });
 
-            // Obtener Base64 como fallback (sin prefijo data:...)
-            const dataUri = doc.output('datauristring');
-            pdfBase64 = dataUri.split(',')[1] || '';
+            // Obtener DATA URI completo (data:application/pdf;base64,.....)
+            // Evolution API acepta esto en el campo "media" si no es una URL
+            dataUri = doc.output('datauristring');
 
-            // B. Subir a Supabase Storage
-            // Intentamos subirlo. Si falla (ej. no existe bucket), continuamos sin URL pero con Base64.
+            // B. Intentar Subir a Supabase Storage (Opcional)
             try {
                 const { data: uploadData, error: uploadError } = await supabase.storage
                     .from('tickets')
                     .upload(fileName, file);
 
-                if (uploadError) {
-                    console.warn("Supabase Upload Warning (check bucket permissions):", uploadError.message);
-                } else {
-                    // C. Obtener URL Pública solo si subió
+                if (!uploadError) {
                     const { data: urlData } = supabase.storage
                         .from('tickets')
                         .getPublicUrl(fileName);
@@ -344,25 +340,22 @@ export const Ticket: React.FC<TicketProps> = ({ type, data, settings, onClose })
                     if (urlData) publicUrl = urlData.publicUrl;
                 }
             } catch (storageError) {
-                console.warn("Error al acceder a Storage:", storageError);
+                // Silently fail storage, fallback to base64
             }
+
+            // C. Determinar qué enviar como "media"
+            // Si hay URL publica, usamos eso. Si no, enviamos el DataURI completo.
+            const finalMedia = publicUrl ? publicUrl : dataUri;
 
             // D. Preparar Payload para n8n
             const total = type === 'SALE' ? (data as Transaction).total.toFixed(2) : '0.00';
             const docId = type === 'SALE' ? (data as Transaction).id.slice(-8).toUpperCase() : 'CIERRE';
-            
-            // Construir teléfono completo (Código Pais + Numero)
             const fullPhone = `${countryCode}${whatsappPhone}`;
             
             let message = `Hola! 🚀\n\nAquí tienes tu comprobante digital de *${settings.name}*.\n\n📄 Ticket: #${docId}\n💰 Total: ${settings.currency} ${total}\n\nGracias por tu preferencia.`;
             
-            // Si no hay URL, el webhook usará el base64
-            if (!publicUrl) {
-                message += "\n\n(Comprobante adjunto).";
-            }
-
             const payload = {
-                user_phone: "51900000000",
+                user_phone: "51900000000", // Parametro fijo requerido por tu flujo
                 plan: "pro",
                 client: {
                     name: "Cliente",
@@ -375,10 +368,11 @@ export const Ticket: React.FC<TicketProps> = ({ type, data, settings, onClose })
                     number: docId,
                     message: message
                 },
-                // IMPORTANTE: Si publicUrl está vacío, NO enviarlo o enviarlo como null para que n8n no falle intentando descargar una URL vacía.
-                // Sin embargo, si el webhook espera la key, enviamos null.
-                pdfUrl: publicUrl || null, 
-                pdfBase64: pdfBase64, // Enviamos el archivo crudo como respaldo
+                // TRUCO PARA EVOLUTION API + N8N:
+                // Tu nodo de n8n lee $json.body.pdfUrl y lo pone en el campo "media".
+                // Evolution acepta URL o DataURI en ese campo.
+                // Así que ponemos el DataURI aquí si no hay URL.
+                pdfUrl: finalMedia, 
                 fileName: fileName
             };
 
@@ -394,13 +388,11 @@ export const Ticket: React.FC<TicketProps> = ({ type, data, settings, onClose })
                 setShowPhoneInput(false);
                 setWhatsappPhone('');
             } else {
-                // Si falla, intentamos ver si devuelve mensaje de error
                 try {
                     const errData = await response.json();
-                    console.error("Webhook Error Response:", errData);
-                    alert("Error del servicio de mensajería: " + (errData.message || "Solicitud rechazada"));
+                    alert("Error del servicio: " + (errData.message || "Revisar conexión"));
                 } catch (e) {
-                    alert("Hubo un problema al contactar con el servicio de mensajería (Error de red o servidor).");
+                    alert("Hubo un problema al contactar con el servicio de mensajería.");
                 }
             }
 
