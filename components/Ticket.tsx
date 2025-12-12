@@ -62,9 +62,10 @@ export const Ticket: React.FC<TicketProps> = ({ type, data, settings, onClose })
         const drawDivider = (yPos: number) => {
             doc.setDrawColor(200, 200, 200);
             doc.setLineWidth(0.1);
-            doc.setLineDash([1, 1], 0);
+            // Fix TS error: setLineDash missing in types
+            (doc as any).setLineDash([1, 1], 0);
             doc.line(margin, yPos, pageWidth - margin, yPos);
-            doc.setLineDash([], 0); // Reset
+            (doc as any).setLineDash([], 0); // Reset
             return yPos + 4;
         };
 
