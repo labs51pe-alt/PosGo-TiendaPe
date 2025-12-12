@@ -120,6 +120,7 @@ export const StorageService = {
                       .map((img: any) => img.image_data)
                   : [];
 
+              const variants = p.variants || [];
               return {
                   id: p.id,
                   name: p.name,
@@ -127,8 +128,8 @@ export const StorageService = {
                   category: p.category,
                   stock: Number(p.stock),
                   barcode: p.barcode,
-                  hasVariants: p.has_variants || false,
-                  variants: p.variants || [],
+                  hasVariants: variants.length > 0, // Derive from data presence
+                  variants: variants,
                   images: prodImages 
               };
           });
@@ -151,7 +152,6 @@ export const StorageService = {
           }
 
           // A. Asegurar que existe la Tienda Demo (Foreign Key)
-          // Usamos maybeSingle() para evitar error JSON si no existe
           const { data: storeExists, error: storeCheckError } = await supabase
               .from('stores')
               .select('id')
@@ -167,11 +167,12 @@ export const StorageService = {
               });
               if (storeCreateError) {
                   console.error("Error creating demo store:", storeCreateError);
-                  // Continuamos, tal vez ya existe y RLS no nos dejó leerlo
               }
           }
 
           // B. Guardar/Actualizar Producto
+          // NOTE: removed 'has_variants' as it causes schema error if column is missing. 
+          // We rely on 'variants' not being empty.
           const payload: any = {
               id: finalId,
               name: product.name,
@@ -179,7 +180,6 @@ export const StorageService = {
               stock: product.stock,
               category: product.category,
               barcode: product.barcode,
-              has_variants: product.hasVariants || false,
               variants: product.variants || [], // Include JSONB variants
               store_id: DEMO_TEMPLATE_ID
           };
@@ -203,14 +203,13 @@ export const StorageService = {
               if (product.images.length > 0) {
                   const imageInserts = product.images.map(imgData => ({
                       product_id: finalId,
-                      image_data: imgData, // Asegurarse que es string base64
+                      image_data: imgData, 
                       store_id: DEMO_TEMPLATE_ID
                   }));
                   
                   const { error: imgError } = await supabase.from('product_images').insert(imageInserts);
                   if (imgError) {
                       console.error("Error inserting images:", imgError);
-                      // No lanzamos error para no bloquear el guardado del producto, pero avisamos
                       return { success: true, error: "Producto guardado, pero hubo error con las imágenes: " + imgError.message };
                   }
               }
@@ -254,6 +253,7 @@ export const StorageService = {
                 ? imagesData.filter((img: any) => img.product_id === p.id).map((img: any) => img.image_data)
                 : [];
 
+            const variants = p.variants || [];
             return {
                 id: p.id,
                 name: p.name,
@@ -261,8 +261,8 @@ export const StorageService = {
                 category: p.category,
                 stock: Number(p.stock),
                 barcode: p.barcode,
-                hasVariants: p.has_variants || false, 
-                variants: p.variants || [],
+                hasVariants: variants.length > 0, // Derive from data
+                variants: variants,
                 images: prodImages 
             };
         });
@@ -292,10 +292,10 @@ export const StorageService = {
                 stock: product.stock,
                 category: product.category,
                 barcode: product.barcode,
-                has_variants: product.hasVariants || false,
                 variants: product.variants || [],
                 store_id: storeId
           };
+          // removed 'has_variants' to avoid schema errors
           
           await supabase.from('products').upsert(payload);
 
@@ -328,10 +328,10 @@ export const StorageService = {
                 stock: p.stock,
                 category: p.category,
                 barcode: p.barcode,
-                has_variants: p.hasVariants || false,
                 variants: p.variants || [],
                 store_id: storeId
             };
+            // removed 'has_variants'
             await supabase.from('products').upsert(payload);
         }
     }
