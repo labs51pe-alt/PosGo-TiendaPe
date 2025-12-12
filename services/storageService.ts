@@ -87,6 +87,15 @@ export const StorageService = {
       await supabase.from('stores').delete().eq('id', storeId);
   },
 
+  // === DEMO MANAGEMENT (FOR SUPER ADMIN) ===
+  getDemoProducts: (): Product[] => {
+      const s = localStorage.getItem(KEYS.PRODUCTS);
+      return s ? JSON.parse(s) : MOCK_PRODUCTS;
+  },
+  saveDemoProducts: (products: Product[]) => {
+      localStorage.setItem(KEYS.PRODUCTS, JSON.stringify(products));
+  },
+
   // === PRODUCTS ===
   getProducts: async (): Promise<Product[]> => {
     if (isDemo()) {

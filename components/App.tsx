@@ -288,13 +288,32 @@ const App: React.FC = () => {
       // If new, generate valid UUID
       if(!pToSave.id) pToSave.id = crypto.randomUUID();
 
-      let updated; 
-      if (products.find(p => p.id === pToSave.id)) updated = products.map(p => p.id === pToSave.id ? pToSave : p); 
-      else updated = [...products, pToSave];
+      // === SPECIAL LOGIC FOR SUPER ADMIN DEMO MANAGEMENT ===
+      if (view === ViewState.SUPER_ADMIN) {
+          const demoProducts = StorageService.getDemoProducts();
+          const index = demoProducts.findIndex(p => p.id === pToSave.id);
+          let updated;
+          if (index >= 0) {
+              updated = demoProducts.map(p => p.id === pToSave.id ? pToSave : p);
+          } else {
+              updated = [...demoProducts, pToSave];
+          }
+          // Save directly to the localStorage key that demos use
+          StorageService.saveDemoProducts(updated);
+          
+          // Force UI Refresh via View Reload (Quick Hack for Super Admin)
+          setView(ViewState.POS);
+          setTimeout(() => setView(ViewState.SUPER_ADMIN), 10);
+      } else {
+          // NORMAL PRODUCT SAVE LOGIC
+          let updated; 
+          if (products.find(p => p.id === pToSave.id)) updated = products.map(p => p.id === pToSave.id ? pToSave : p); 
+          else updated = [...products, pToSave];
 
-      setProducts(updated); 
-      // Use specific method to handle images
-      await StorageService.saveProductWithImages(pToSave);
+          setProducts(updated); 
+          await StorageService.saveProductWithImages(pToSave);
+      }
+      
       setIsProductModalOpen(false);
   };
   
@@ -449,7 +468,16 @@ const App: React.FC = () => {
             )}
 
             {view === ViewState.SUPER_ADMIN && (
-                <SuperAdminView />
+                <SuperAdminView 
+                    onNewProduct={() => { 
+                        setCurrentProduct({ id: '', name: '', price: 0, category: CATEGORIES[0], stock: 0, variants: [], images: [] }); 
+                        setIsProductModalOpen(true); 
+                    }} 
+                    onEditProduct={(p) => { 
+                        setCurrentProduct(p); 
+                        setIsProductModalOpen(true); 
+                    }} 
+                />
             )}
         </Layout>
 
