@@ -3,7 +3,7 @@ import { UserProfile } from '../types';
 import { 
   Rocket, ArrowRight, MessageSquare, CheckCircle, RefreshCw, 
   Sparkles, ShieldAlert, Lock, ChevronDown, AlertCircle, PlayCircle,
-  ShoppingBag, Package, BarChart3, Zap, User, Building2
+  ShoppingBag, Package, BarChart3, Zap, User, Building2, Star
 } from 'lucide-react';
 import { supabase } from '../services/supabase';
 import { StorageService } from '../services/storageService';
@@ -270,8 +270,8 @@ export const Auth: React.FC<AuthProps> = ({ onLogin }) => {
   return (
     <div className="min-h-screen flex flex-col lg:flex-row font-inter overflow-hidden relative selection:bg-emerald-500 selection:text-white bg-white">
         
-        {/* LEFT PANEL */}
-        <div className="w-full lg:w-[55%] relative z-10 flex flex-col justify-center px-8 lg:px-20 py-8 bg-slate-50 overflow-hidden">
+        {/* LEFT PANEL: HERO SECTION */}
+        <div className="w-full lg:w-[55%] relative z-10 flex flex-col justify-center px-8 lg:px-20 py-12 lg:py-8 bg-slate-50 overflow-hidden">
              
              {/* Animated Blobs */}
              <div className="absolute top-0 -left-4 w-64 h-64 bg-indigo-300 rounded-full mix-blend-multiply filter blur-3xl opacity-60 animate-blob"></div>
@@ -279,130 +279,145 @@ export const Auth: React.FC<AuthProps> = ({ onLogin }) => {
              <div className="absolute -bottom-8 left-20 w-72 h-72 bg-pink-200 rounded-full mix-blend-multiply filter blur-3xl opacity-60 animate-blob animation-delay-4000"></div>
 
              {/* Brand Header */}
-             <div className="relative z-10 flex items-center gap-4 mb-10 select-none">
+             <div className="relative z-10 flex items-center gap-4 mb-12 select-none">
                  <div 
                     onClick={handleLogoClick}
-                    className="w-14 h-14 bg-slate-900 rounded-2xl flex items-center justify-center shadow-lg shadow-slate-300 transform -rotate-6 transition-transform hover:rotate-0 cursor-pointer active:scale-95"
+                    className="w-14 h-14 bg-slate-900 rounded-2xl flex items-center justify-center shadow-lg shadow-slate-300 transform -rotate-6 transition-transform hover:rotate-0 cursor-pointer active:scale-95 group"
                  >
-                     <Rocket className="w-8 h-8 text-white" />
+                     <Rocket className="w-8 h-8 text-white group-hover:animate-pulse" />
                  </div>
                  <span onClick={handleLogoClick} className="text-4xl font-black text-slate-900 tracking-tighter font-sans cursor-pointer">PosGo!</span>
              </div>
 
              {/* Main Content */}
              <div className="relative z-10 max-w-xl animate-fade-in-up">
-                 <div className="inline-flex items-center gap-2 px-3 py-1.5 rounded-full bg-white/80 backdrop-blur-md border border-emerald-100 mb-6 shadow-sm">
-                     <div className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse"></div>
-                     <span className="text-[9px] font-black text-slate-600 uppercase tracking-widest font-sans">SISTEMA PUNTO DE VENTA</span>
+                 <div className="inline-flex items-center gap-2 px-4 py-2 rounded-full bg-white/80 backdrop-blur-md border border-emerald-100 mb-8 shadow-sm hover:shadow-md transition-shadow cursor-default">
+                     <span className="relative flex h-2 w-2">
+                        <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75"></span>
+                        <span className="relative inline-flex rounded-full h-2 w-2 bg-emerald-500"></span>
+                     </span>
+                     <span className="text-[10px] font-black text-slate-600 uppercase tracking-widest font-sans">SISTEMA PUNTO DE VENTA ONLINE</span>
                  </div>
 
-                 <h1 className="text-4xl lg:text-6xl font-black text-slate-900 leading-[1.05] mb-6 tracking-tight font-sans">
-                     Gestiona tu <span className="text-indigo-600">Negocio</span><br/>
-                     y Vende <span className="text-emerald-500">Sin Límites.</span>
+                 <h1 className="text-4xl lg:text-7xl font-black text-slate-900 leading-[1.05] mb-8 tracking-tight font-sans">
+                     Gestiona tu <span className="text-transparent bg-clip-text bg-gradient-to-r from-indigo-600 to-violet-600">Negocio</span><br/>
+                     y Vende <span className="text-transparent bg-clip-text bg-gradient-to-r from-emerald-500 to-teal-500">Sin Límites.</span>
                  </h1>
 
-                 <div className="grid grid-cols-1 gap-4 mb-8">
-                    <div className="flex items-center gap-3 group">
-                        <div className="w-10 h-10 rounded-xl bg-emerald-100 text-emerald-600 flex items-center justify-center shadow-sm group-hover:scale-105 transition-transform">
-                            <Zap className="w-5 h-5 fill-current"/>
+                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-5 mb-10">
+                    <div className="flex items-start gap-4 p-4 rounded-2xl bg-white/60 border border-white hover:bg-white hover:shadow-lg hover:scale-[1.02] transition-all duration-300">
+                        <div className="w-12 h-12 rounded-2xl bg-gradient-to-br from-emerald-100 to-teal-50 text-emerald-600 flex items-center justify-center shadow-sm shrink-0">
+                            <Zap className="w-6 h-6 fill-current"/>
                         </div>
                         <div>
-                            <h3 className="font-bold text-slate-800 text-base">Ventas Rápidas</h3>
-                            <p className="text-xs text-slate-500">Facturación ágil en segundos.</p>
+                            <h3 className="font-bold text-slate-800 text-base mb-0.5">Ventas Rápidas</h3>
+                            <p className="text-xs text-slate-500 leading-relaxed">Facturación ágil en segundos, compatible con tickets.</p>
                         </div>
                     </div>
-                    <div className="flex items-center gap-3 group">
-                        <div className="w-10 h-10 rounded-xl bg-indigo-100 text-indigo-600 flex items-center justify-center shadow-sm group-hover:scale-105 transition-transform">
-                            <Package className="w-5 h-5"/>
+                    
+                    <div className="flex items-start gap-4 p-4 rounded-2xl bg-white/60 border border-white hover:bg-white hover:shadow-lg hover:scale-[1.02] transition-all duration-300">
+                        <div className="w-12 h-12 rounded-2xl bg-gradient-to-br from-indigo-100 to-violet-50 text-indigo-600 flex items-center justify-center shadow-sm shrink-0">
+                            <Package className="w-6 h-6"/>
                         </div>
                         <div>
-                             <h3 className="font-bold text-slate-800 text-base">Control de Inventarios</h3>
-                             <p className="text-xs text-slate-500">Gestión de stock eficiente.</p>
+                             <h3 className="font-bold text-slate-800 text-base mb-0.5">Control Total</h3>
+                             <p className="text-xs text-slate-500 leading-relaxed">Inventarios, caja chica y variantes de productos.</p>
                         </div>
                     </div>
-                    <div className="flex items-center gap-3 group">
-                        <div className="w-10 h-10 rounded-xl bg-pink-100 text-pink-500 flex items-center justify-center shadow-sm group-hover:scale-105 transition-transform">
-                            <BarChart3 className="w-5 h-5"/>
-                        </div>
-                        <div>
-                             <h3 className="font-bold text-slate-800 text-base">Reportes</h3>
-                             <p className="text-xs text-slate-500">Visualiza tus ganancias y métricas.</p>
-                        </div>
+                 </div>
+
+                 {/* Social Proofish */}
+                 <div className="flex items-center gap-4 text-slate-400 text-xs font-bold font-sans">
+                    <div className="flex -space-x-3">
+                        <div className="w-8 h-8 rounded-full border-2 border-white bg-slate-200"></div>
+                        <div className="w-8 h-8 rounded-full border-2 border-white bg-slate-300"></div>
+                        <div className="w-8 h-8 rounded-full border-2 border-white bg-slate-400 flex items-center justify-center text-[8px] text-white bg-slate-800">+1k</div>
                     </div>
+                    <p>Negocios confían en nosotros</p>
                  </div>
              </div>
         </div>
 
         {/* RIGHT PANEL: Login Form */}
-        <div className="w-full lg:w-[45%] bg-white/50 backdrop-blur-xl border-l border-slate-100 flex flex-col justify-center items-center p-8 relative">
-            <div className="w-full max-w-[380px]">
+        <div className="w-full lg:w-[45%] bg-white border-l border-slate-100 flex flex-col justify-center items-center p-6 lg:p-12 relative">
+            {/* Background Decor */}
+            <div className="absolute top-0 right-0 w-full h-full overflow-hidden pointer-events-none">
+                 <div className="absolute top-[-10%] right-[-10%] w-[40%] h-[40%] bg-gradient-to-br from-emerald-50 to-teal-50 rounded-full blur-3xl opacity-50"></div>
+                 <div className="absolute bottom-[-10%] left-[-10%] w-[40%] h-[40%] bg-gradient-to-tr from-indigo-50 to-purple-50 rounded-full blur-3xl opacity-50"></div>
+            </div>
+
+            <div className="w-full max-w-[420px] relative z-10">
                 
                 {/* Mobile Logo */}
-                <div className="lg:hidden flex justify-center mb-6">
-                    <button onClick={handleLogoClick} className="w-16 h-16 bg-slate-900 rounded-2xl flex items-center justify-center shadow-lg shadow-slate-300">
+                <div className="lg:hidden flex justify-center mb-8">
+                    <button onClick={handleLogoClick} className="w-16 h-16 bg-slate-900 rounded-2xl flex items-center justify-center shadow-xl shadow-slate-200">
                         <Rocket className="w-8 h-8 text-white"/>
                     </button>
                 </div>
 
-                {/* Secret Trigger Area for Desktop (kept for compatibility, but main logo also works now) */}
+                {/* Secret Trigger Area for Desktop */}
                 <div className="hidden lg:block absolute top-10 right-10 opacity-0 w-20 h-20 cursor-default z-50" onClick={handleLogoClick}></div>
 
-                <div className="mb-8 text-center lg:text-left">
-                    <h2 className="text-2xl font-black text-slate-900 mb-1 font-sans">
-                        {activeTab === 'CLIENT' ? 'Bienvenido de nuevo' : 'Prueba PosGo! Gratis'}
-                    </h2>
-                    <p className="text-slate-500 font-sans text-sm">
-                        {activeTab === 'CLIENT' ? 'Ingresa tus credenciales para continuar.' : 'Recibe tu código de acceso por WhatsApp.'}
-                    </p>
-                </div>
-
-                {/* Clean Tabs */}
-                <div className="flex gap-6 mb-6 border-b border-slate-200 pb-1 font-sans">
+                {/* TABS SWITCHER */}
+                <div className="bg-slate-100/80 p-1.5 rounded-2xl flex relative mb-8 shadow-inner">
+                    <div 
+                        className={`absolute top-1.5 bottom-1.5 w-[calc(50%-6px)] bg-white rounded-xl shadow-sm transition-all duration-300 ease-out ${activeTab === 'DEMO' ? 'left-1.5' : 'left-[calc(50%+3px)]'}`}
+                    ></div>
                     <button 
                         onClick={() => handleTabSwitch('DEMO')}
-                        className={`pb-2 text-sm font-bold transition-all relative ${activeTab === 'DEMO' ? 'text-emerald-500' : 'text-slate-400 hover:text-slate-600'}`}
+                        className={`flex-1 py-3 text-sm font-black text-center relative z-10 transition-colors duration-300 flex items-center justify-center gap-2 ${activeTab === 'DEMO' ? 'text-slate-800' : 'text-slate-400 hover:text-slate-600'}`}
                     >
-                        Quiero Probar
-                        {activeTab === 'DEMO' && <div className="absolute bottom-0 left-0 w-full h-0.5 bg-emerald-500 rounded-t-full"></div>}
+                        Quiero Probar <span className="hidden sm:inline-block bg-emerald-500 text-white text-[9px] px-1.5 rounded-md animate-pulse">GRATIS</span>
                     </button>
                     <button 
                         onClick={() => handleTabSwitch('CLIENT')}
-                        className={`pb-2 text-sm font-bold transition-all relative ${activeTab === 'CLIENT' ? 'text-indigo-600' : 'text-slate-400 hover:text-slate-600'}`}
+                        className={`flex-1 py-3 text-sm font-black text-center relative z-10 transition-colors duration-300 ${activeTab === 'CLIENT' ? 'text-slate-800' : 'text-slate-400 hover:text-slate-600'}`}
                     >
                         Soy Cliente
-                        {activeTab === 'CLIENT' && <div className="absolute bottom-0 left-0 w-full h-0.5 bg-indigo-600 rounded-t-full"></div>}
                     </button>
                 </div>
 
-                {/* Form */}
-                <div className="min-h-[220px]">
+                <div className="mb-8 text-center">
+                    <h2 className="text-3xl font-black text-slate-900 mb-2 font-sans tracking-tight">
+                        {activeTab === 'CLIENT' ? 'Bienvenido de nuevo' : 'Empieza Gratis Hoy'}
+                    </h2>
+                    <p className="text-slate-500 font-medium text-sm">
+                        {activeTab === 'CLIENT' ? 'Accede a tu panel de control.' : 'Recibe tu acceso inmediato por WhatsApp.'}
+                    </p>
+                </div>
+
+                {/* CARD CONTAINER */}
+                <div className="bg-white/70 backdrop-blur-xl border border-white/50 rounded-[2rem] p-6 lg:p-8 shadow-2xl shadow-slate-200/50 relative overflow-hidden">
+                   {/* Shine effect on card */}
+                   <div className="absolute top-0 left-0 w-full h-1 bg-gradient-to-r from-transparent via-emerald-400/50 to-transparent opacity-50"></div>
+
                    {loginStep === 'FORM' ? (
-                    <form onSubmit={handleSendCode} className="space-y-4 animate-fade-in font-sans">
+                    <form onSubmit={handleSendCode} className="space-y-5 animate-fade-in font-sans relative z-10">
                         
                         {/* Demo Specific Fields */}
                         {activeTab === 'DEMO' && (
                             <div className="space-y-4">
-                                <div className="space-y-1.5">
-                                    <label className="text-[10px] font-bold text-slate-500 uppercase tracking-wider">Tu Nombre</label>
-                                    <div className="flex items-center gap-2 bg-white border border-slate-200 rounded-xl p-2.5 focus-within:border-emerald-500 focus-within:ring-2 focus-within:ring-emerald-50 transition-all">
-                                        <User className="w-5 h-5 text-slate-300"/>
+                                <div className="group">
+                                    <label className="block text-[10px] font-bold text-slate-400 uppercase tracking-wider mb-1.5 ml-1">Tu Nombre</label>
+                                    <div className="flex items-center gap-3 bg-slate-50 border border-slate-200 group-focus-within:bg-white group-focus-within:border-emerald-500 group-focus-within:ring-4 group-focus-within:ring-emerald-500/10 rounded-2xl px-4 py-3 transition-all duration-300">
+                                        <User className="w-5 h-5 text-slate-400 group-focus-within:text-emerald-500 transition-colors"/>
                                         <input 
                                             type="text" 
                                             placeholder="Ej. Juan Pérez" 
-                                            className="w-full bg-transparent outline-none font-bold text-sm text-slate-800 placeholder-slate-300"
+                                            className="w-full bg-transparent outline-none font-bold text-sm text-slate-800 placeholder-slate-400"
                                             value={demoName}
                                             onChange={e => setDemoName(e.target.value)}
                                         />
                                     </div>
                                 </div>
-                                <div className="space-y-1.5">
-                                    <label className="text-[10px] font-bold text-slate-500 uppercase tracking-wider">Nombre de tu Negocio</label>
-                                    <div className="flex items-center gap-2 bg-white border border-slate-200 rounded-xl p-2.5 focus-within:border-emerald-500 focus-within:ring-2 focus-within:ring-emerald-50 transition-all">
-                                        <Building2 className="w-5 h-5 text-slate-300"/>
+                                <div className="group">
+                                    <label className="block text-[10px] font-bold text-slate-400 uppercase tracking-wider mb-1.5 ml-1">Nombre de tu Negocio</label>
+                                    <div className="flex items-center gap-3 bg-slate-50 border border-slate-200 group-focus-within:bg-white group-focus-within:border-emerald-500 group-focus-within:ring-4 group-focus-within:ring-emerald-500/10 rounded-2xl px-4 py-3 transition-all duration-300">
+                                        <Building2 className="w-5 h-5 text-slate-400 group-focus-within:text-emerald-500 transition-colors"/>
                                         <input 
                                             type="text" 
                                             placeholder="Ej. Bodega El Sol" 
-                                            className="w-full bg-transparent outline-none font-bold text-sm text-slate-800 placeholder-slate-300"
+                                            className="w-full bg-transparent outline-none font-bold text-sm text-slate-800 placeholder-slate-400"
                                             value={demoBusiness}
                                             onChange={e => setDemoBusiness(e.target.value)}
                                         />
@@ -411,13 +426,13 @@ export const Auth: React.FC<AuthProps> = ({ onLogin }) => {
                             </div>
                         )}
 
-                        <div className="space-y-1.5">
-                             <label className="text-[10px] font-bold text-slate-500 uppercase tracking-wider">
+                        <div className="group">
+                             <label className="block text-[10px] font-bold text-slate-400 uppercase tracking-wider mb-1.5 ml-1">
                                 {activeTab === 'CLIENT' ? 'Número de Celular' : 'WhatsApp (Para enviar código)'}
                              </label>
                              
-                             <div className={`flex items-center gap-2 bg-white border border-slate-200 rounded-xl p-2.5 transition-all ${validationError ? 'border-red-300 ring-2 ring-red-50' : 'focus-within:border-indigo-500 focus-within:ring-2 focus-within:ring-indigo-50'}`}>
-                                <div className="relative pl-1 pr-2 border-r border-slate-100">
+                             <div className={`flex items-center gap-3 bg-slate-50 border border-slate-200 group-focus-within:bg-white rounded-2xl px-3 py-3 transition-all duration-300 ${activeTab === 'DEMO' ? 'group-focus-within:border-emerald-500 group-focus-within:ring-4 group-focus-within:ring-emerald-500/10' : 'group-focus-within:border-indigo-500 group-focus-within:ring-4 group-focus-within:ring-indigo-500/10'} ${validationError ? '!border-red-300 !ring-4 !ring-red-100' : ''}`}>
+                                <div className="relative pl-1 pr-3 border-r border-slate-200 group-focus-within:border-slate-100 transition-colors">
                                     <select 
                                         value={countryCode}
                                         onChange={(e) => setCountryCode(e.target.value)}
@@ -427,7 +442,7 @@ export const Auth: React.FC<AuthProps> = ({ onLogin }) => {
                                             <option key={c.code} value={c.code}>{c.flag} +{c.code} {c.name}</option>
                                         ))}
                                     </select>
-                                    <div className="flex items-center gap-1 cursor-pointer">
+                                    <div className="flex items-center gap-1.5 cursor-pointer">
                                         <span className="text-xl">{currentCountry?.flag}</span>
                                         <ChevronDown className="w-3 h-3 text-slate-400"/>
                                     </div>
@@ -438,14 +453,14 @@ export const Auth: React.FC<AuthProps> = ({ onLogin }) => {
                                     value={phoneNumber}
                                     onChange={(e) => setPhoneNumber(e.target.value.replace(/\D/g, ''))}
                                     maxLength={currentCountry.length}
-                                    className="w-full bg-transparent outline-none font-bold text-base text-slate-800 placeholder:text-slate-300 h-8"
+                                    className="w-full bg-transparent outline-none font-bold text-lg text-slate-800 placeholder:text-slate-300 tracking-wide"
                                     placeholder={currentCountry.placeholder}
                                     autoFocus
                                 />
                              </div>
                              
                              {validationError && (
-                                 <div className="flex items-center gap-2 text-red-500 text-[10px] font-bold animate-fade-in mt-1">
+                                 <div className="flex items-center gap-2 text-red-500 text-[10px] font-bold animate-fade-in mt-2 ml-1">
                                      <AlertCircle className="w-3 h-3"/> {validationError}
                                  </div>
                              )}
@@ -454,8 +469,15 @@ export const Auth: React.FC<AuthProps> = ({ onLogin }) => {
                         <button
                             type="submit"
                             disabled={loading}
-                            className={`w-full py-3.5 text-white rounded-xl font-bold text-sm shadow-lg transition-all flex items-center justify-center gap-2 disabled:opacity-50 disabled:cursor-not-allowed group active:scale-95 ${activeTab === 'DEMO' ? 'bg-emerald-500 hover:bg-emerald-600 shadow-emerald-200' : 'bg-indigo-600 hover:bg-indigo-700 shadow-indigo-200'}`}
+                            className={`w-full py-4 text-white rounded-2xl font-bold text-sm shadow-xl transition-all flex items-center justify-center gap-2 disabled:opacity-50 disabled:cursor-not-allowed group relative overflow-hidden active:scale-[0.98]
+                                ${activeTab === 'DEMO' 
+                                    ? 'bg-gradient-to-r from-emerald-500 to-teal-500 hover:to-teal-400 shadow-emerald-500/30' 
+                                    : 'bg-gradient-to-r from-indigo-600 to-violet-600 hover:to-violet-500 shadow-indigo-500/30'}
+                            `}
                         >
+                             {/* Shimmer Effect */}
+                             <div className="absolute top-0 -left-[100%] w-full h-full bg-gradient-to-r from-transparent via-white/20 to-transparent animate-shimmer"></div>
+
                             {loading ? <RefreshCw className="w-5 h-5 animate-spin"/> : (
                                 <>
                                     {activeTab === 'CLIENT' ? 'Ingresar Ahora' : 'Obtener Acceso Demo'} 
@@ -465,27 +487,27 @@ export const Auth: React.FC<AuthProps> = ({ onLogin }) => {
                         </button>
                     </form>
                    ) : (
-                    <form onSubmit={handleVerifyOtp} className="space-y-5 animate-fade-in font-sans">
+                    <form onSubmit={handleVerifyOtp} className="space-y-6 animate-fade-in font-sans relative z-10">
                         <div className="text-center">
-                            <div className="w-10 h-10 rounded-full bg-emerald-50 text-emerald-600 flex items-center justify-center mx-auto mb-3">
-                                <MessageSquare className="w-5 h-5 fill-current"/>
+                            <div className="w-14 h-14 rounded-full bg-emerald-50 text-emerald-500 flex items-center justify-center mx-auto mb-4 border border-emerald-100 shadow-sm">
+                                <MessageSquare className="w-6 h-6 fill-current"/>
                             </div>
-                            <h3 className="font-bold text-slate-900 text-base mb-1">Código de Verificación</h3>
-                            <p className="text-xs text-slate-500">
-                                Enviado a <span className="font-bold text-slate-900">+{countryCode} {phoneNumber}</span>
+                            <h3 className="font-bold text-slate-900 text-lg mb-1">Código de Verificación</h3>
+                            <p className="text-sm text-slate-500">
+                                Enviado a <span className="font-bold text-slate-800">+{countryCode} {phoneNumber}</span>
                             </p>
-                            <button type="button" onClick={() => setLoginStep('FORM')} className="text-[10px] font-bold text-indigo-600 hover:underline mt-2">
-                                Corregir datos
+                            <button type="button" onClick={() => setLoginStep('FORM')} className="text-xs font-bold text-indigo-500 hover:text-indigo-600 hover:underline mt-2">
+                                ¿Número incorrecto?
                             </button>
                         </div>
                         
-                        <div className="flex justify-center my-2">
+                        <div className="flex justify-center my-2 group">
                             <input
                                 type="text"
                                 maxLength={6}
                                 value={otpCode}
                                 onChange={(e) => setOtpCode(e.target.value)}
-                                className="w-full text-center bg-white border border-slate-200 rounded-xl py-3 font-black text-2xl tracking-[0.5em] text-slate-800 outline-none focus:border-emerald-500 focus:ring-4 focus:ring-emerald-50 transition-all placeholder:text-slate-200"
+                                className="w-full text-center bg-slate-50 border-2 border-slate-200 rounded-2xl py-4 font-black text-3xl tracking-[0.5em] text-slate-800 outline-none focus:border-emerald-500 focus:bg-white focus:ring-4 focus:ring-emerald-500/10 transition-all placeholder:text-slate-300 shadow-sm"
                                 placeholder="000000"
                                 autoFocus
                             />
@@ -500,9 +522,9 @@ export const Auth: React.FC<AuthProps> = ({ onLogin }) => {
                         <button
                             type="submit"
                             disabled={loading || otpCode.length < 4}
-                            className="w-full py-3.5 bg-slate-900 hover:bg-black text-white rounded-xl font-bold text-sm shadow-xl transition-all flex items-center justify-center gap-2 disabled:opacity-50 active:scale-95"
+                            className="w-full py-4 bg-slate-900 hover:bg-black text-white rounded-2xl font-bold text-sm shadow-xl shadow-slate-300 transition-all flex items-center justify-center gap-2 disabled:opacity-50 active:scale-95 group"
                         >
-                            {loading ? <RefreshCw className="w-5 h-5 animate-spin"/> : <>Validar e Ingresar <CheckCircle className="w-5 h-5"/></>}
+                            {loading ? <RefreshCw className="w-5 h-5 animate-spin"/> : <>Validar e Ingresar <CheckCircle className="w-5 h-5 group-hover:scale-110 transition-transform"/></>}
                         </button>
                     </form>
                    )}
@@ -522,8 +544,8 @@ export const Auth: React.FC<AuthProps> = ({ onLogin }) => {
         {/* GOD MODE MODAL */}
         {showGodMode && (
              <div className="fixed inset-0 bg-white/90 backdrop-blur-md z-[100] flex items-center justify-center p-6 animate-fade-in font-sans">
-                 <div className="bg-white w-full max-w-sm rounded-2xl p-8 shadow-2xl animate-fade-in-up text-center border border-slate-200">
-                     <div className="w-16 h-16 bg-red-50 rounded-2xl flex items-center justify-center mx-auto mb-6">
+                 <div className="bg-white w-full max-w-sm rounded-[2rem] p-8 shadow-2xl animate-fade-in-up text-center border border-slate-200">
+                     <div className="w-16 h-16 bg-red-50 rounded-2xl flex items-center justify-center mx-auto mb-6 border border-red-100">
                          <ShieldAlert className="w-8 h-8 text-red-600"/>
                      </div>
                      <h2 className="text-2xl font-black text-slate-900 mb-2">Super Admin</h2>
@@ -531,12 +553,12 @@ export const Auth: React.FC<AuthProps> = ({ onLogin }) => {
                      
                      <form onSubmit={handleGodModeLogin} className="space-y-4">
                         <div className="relative group">
-                            <Lock className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-400 w-5 h-5"/>
+                            <Lock className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-400 w-5 h-5 group-focus-within:text-red-500 transition-colors"/>
                             <input 
                                 type="password" 
                                 value={masterPassword}
                                 onChange={e => setMasterPassword(e.target.value)}
-                                className="w-full pl-12 pr-4 py-4 bg-slate-50 border border-slate-200 rounded-xl text-slate-900 font-bold outline-none focus:border-red-500 transition-all placeholder:text-slate-300"
+                                className="w-full pl-12 pr-4 py-4 bg-slate-50 border border-slate-200 rounded-2xl text-slate-900 font-bold outline-none focus:border-red-500 focus:bg-white transition-all placeholder:text-slate-300"
                                 placeholder="******"
                                 autoFocus
                             />
@@ -545,7 +567,7 @@ export const Auth: React.FC<AuthProps> = ({ onLogin }) => {
                         
                         <div className="flex gap-3 mt-6">
                             <button type="button" onClick={() => setShowGodMode(false)} className="flex-1 py-3 text-slate-500 font-bold hover:bg-slate-50 rounded-xl transition-colors text-sm">Cancelar</button>
-                            <button type="submit" className="flex-1 py-3 bg-red-600 text-white font-bold rounded-xl hover:bg-red-700 transition-all text-sm">Entrar</button>
+                            <button type="submit" className="flex-1 py-3 bg-red-600 text-white font-bold rounded-xl hover:bg-red-700 transition-all text-sm shadow-lg shadow-red-200">Entrar</button>
                         </div>
                      </form>
                  </div>
