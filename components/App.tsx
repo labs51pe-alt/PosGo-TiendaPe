@@ -293,12 +293,16 @@ const App: React.FC = () => {
 
       // === SUPER ADMIN / TEMPLATE MODE ===
       if (view === ViewState.SUPER_ADMIN) {
-          const success = await StorageService.saveDemoProductToTemplate(pToSave);
-          if (success) {
-              alert("Producto guardado en Plantilla Global exitosamente.");
+          const result = await StorageService.saveDemoProductToTemplate(pToSave);
+          if (result.success) {
+              if (result.error) {
+                  alert("Producto guardado, pero hubo un problema con las imágenes: " + result.error);
+              } else {
+                  alert("Producto guardado en Plantilla Global exitosamente.");
+              }
               setIsProductModalOpen(false);
           } else {
-              alert("Error al guardar en la nube. Revisa la consola.");
+              alert("Error crítico al guardar: " + (result.error || "Desconocido"));
           }
           return;
       }

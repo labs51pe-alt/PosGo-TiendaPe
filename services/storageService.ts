@@ -102,7 +102,7 @@ export const StorageService = {
           
           // Si hay error o no hay datos, devolver MOCK local como fallback
           if (prodError || !productsData || productsData.length === 0) {
-              console.warn("No template found in DB, using local mocks.");
+              console.warn("No template found in DB, using local mocks.", prodError);
               return MOCK_PRODUCTS; 
           }
 
@@ -139,17 +139,29 @@ export const StorageService = {
   },
 
   // 2. GUARDAR PLANTILLA (Solo Super Admin)
-  saveDemoProductToTemplate: async (product: Product) => {
+  saveDemoProductToTemplate: async (product: Product): Promise<{ success: boolean; error?: string }> => {
       try {
+          console.log("Saving demo product...", product.id);
+
           // A. Asegurar que existe la Tienda Demo (Foreign Key)
-          const { data: storeExists } = await supabase.from('stores').select('id').eq('id', DEMO_TEMPLATE_ID).single();
+          // Usamos maybeSingle() para evitar error JSON si no existe
+          const { data: storeExists, error: storeCheckError } = await supabase
+              .from('stores')
+              .select('id')
+              .eq('id', DEMO_TEMPLATE_ID)
+              .maybeSingle();
           
           if (!storeExists) {
-              await supabase.from('stores').upsert({
+              console.log("Creating demo store entry...");
+              const { error: storeCreateError } = await supabase.from('stores').upsert({
                   id: DEMO_TEMPLATE_ID,
                   settings: DEFAULT_SETTINGS,
                   created_at: new Date().toISOString()
               });
+              if (storeCreateError) {
+                  console.error("Error creating demo store:", storeCreateError);
+                  // Continuamos, tal vez ya existe y RLS no nos dejó leerlo
+              }
           }
 
           // B. Guardar/Actualizar Producto
@@ -164,31 +176,40 @@ export const StorageService = {
           };
           
           const { error: prodError } = await supabase.from('products').upsert(payload);
-          if (prodError) throw prodError;
+          if (prodError) {
+              console.error("Error inserting product:", prodError);
+              throw new Error(`Error en Productos: ${prodError.message}`);
+          }
           
           // C. Gestionar Imágenes (Borrar viejas -> Insertar nuevas)
           if (product.images) {
               // 1. Borrar anteriores
-              await supabase.from('product_images').delete()
+              const { error: delError } = await supabase.from('product_images').delete()
                   .eq('product_id', product.id)
                   .eq('store_id', DEMO_TEMPLATE_ID);
+              
+              if (delError) console.warn("Warning deleting old images:", delError);
               
               // 2. Insertar nuevas
               if (product.images.length > 0) {
                   const imageInserts = product.images.map(imgData => ({
                       product_id: product.id,
-                      image_data: imgData,
+                      image_data: imgData, // Asegurarse que es string base64
                       store_id: DEMO_TEMPLATE_ID
                   }));
                   
                   const { error: imgError } = await supabase.from('product_images').insert(imageInserts);
-                  if (imgError) console.error("Error saving demo images:", imgError);
+                  if (imgError) {
+                      console.error("Error inserting images:", imgError);
+                      // No lanzamos error para no bloquear el guardado del producto, pero avisamos
+                      return { success: true, error: "Producto guardado, pero hubo error con las imágenes: " + imgError.message };
+                  }
               }
           }
-          return true;
-      } catch (err) {
+          return { success: true };
+      } catch (err: any) {
           console.error("Critical error saving demo product:", err);
-          return false;
+          return { success: false, error: err.message || "Error desconocido" };
       }
   },
 
