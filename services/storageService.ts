@@ -95,6 +95,10 @@ export const StorageService = {
   saveDemoProducts: (products: Product[]) => {
       localStorage.setItem(KEYS.PRODUCTS, JSON.stringify(products));
   },
+  resetDemoProductsOnly: (): Product[] => {
+      localStorage.setItem(KEYS.PRODUCTS, JSON.stringify(MOCK_PRODUCTS));
+      return MOCK_PRODUCTS;
+  },
 
   // === PRODUCTS ===
   getProducts: async (): Promise<Product[]> => {

@@ -16,6 +16,12 @@ export interface ProductVariant {
   stock: number;
 }
 
+export interface PackItem {
+    productId: string;
+    productName: string; // Cached name for display
+    quantity: number;
+}
+
 export interface Product {
   id: string;
   name: string;
@@ -25,9 +31,11 @@ export interface Product {
   barcode?: string;
   hasVariants?: boolean;
   variants?: ProductVariant[];
-  images?: string[]; // Changed from single image to array
+  isPack?: boolean;     // New: Identifies if this is a bundle
+  packItems?: PackItem[]; // New: List of contents
+  images?: string[]; 
   description?: string;
-  cost?: number; // Added to match Supabase logic if needed visually
+  cost?: number; 
 }
 
 export interface CartItem extends Product {

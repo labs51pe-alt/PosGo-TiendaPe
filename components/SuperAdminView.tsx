@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { Lead, Store, Product } from '../types';
 import { StorageService } from '../services/storageService';
-import { Users, Building2, Trash2, MessageCircle, Phone, Calendar, RefreshCw, ShieldAlert, Check, Database, Package, Plus, Edit } from 'lucide-react';
+import { Users, Building2, Trash2, MessageCircle, Phone, Calendar, RefreshCw, ShieldAlert, Check, Database, Package, Plus, Edit, RotateCcw } from 'lucide-react';
 import { CATEGORIES } from '../constants';
 
 interface SuperAdminProps {
@@ -10,7 +10,7 @@ interface SuperAdminProps {
 }
 
 export const SuperAdminView: React.FC<SuperAdminProps> = ({ onEditProduct, onNewProduct }) => {
-    const [activeTab, setActiveTab] = useState<'LEADS' | 'STORES' | 'DEMO_PRODUCTS'>('LEADS');
+    const [activeTab, setActiveTab] = useState<'LEADS' | 'STORES' | 'DEMO_PRODUCTS'>('DEMO_PRODUCTS'); // Default to DEMO_PRODUCTS for visibility
     const [leads, setLeads] = useState<Lead[]>([]);
     const [stores, setStores] = useState<Store[]>([]);
     const [demoProducts, setDemoProducts] = useState<Product[]>([]);
@@ -27,7 +27,9 @@ export const SuperAdminView: React.FC<SuperAdminProps> = ({ onEditProduct, onNew
             setStores(s);
             
             // Load Demo Products (Sync because localstorage)
-            setDemoProducts(StorageService.getDemoProducts());
+            // Ensure we get something even if empty initially
+            const prods = StorageService.getDemoProducts();
+            setDemoProducts(prods);
 
         } catch (error) {
             console.error("Error fetching admin data:", error);
@@ -69,6 +71,13 @@ export const SuperAdminView: React.FC<SuperAdminProps> = ({ onEditProduct, onNew
         }
     };
 
+    const handleRestoreDemo = () => {
+        if(window.confirm('¿Restaurar el catálogo por defecto? Esto borrará los cambios actuales en la demo.')) {
+            const defaults = StorageService.resetDemoProductsOnly();
+            setDemoProducts(defaults);
+        }
+    };
+
     const handleWhatsApp = (phone: string, name: string) => {
         const text = `Hola ${name}, te contacto desde PosGo! 🚀 ¿Cómo podemos ayudarte?`;
         window.open(`https://wa.me/${phone}?text=${encodeURIComponent(text)}`, '_blank');
@@ -93,7 +102,7 @@ export const SuperAdminView: React.FC<SuperAdminProps> = ({ onEditProduct, onNew
                     onClick={() => setActiveTab('LEADS')} 
                     className={`px-6 py-3 rounded-xl text-sm font-bold transition-all flex items-center gap-2 ${activeTab === 'LEADS' ? 'bg-indigo-600 text-white shadow-lg shadow-indigo-200' : 'bg-white text-slate-500'}`}
                 >
-                    <Users className="w-4 h-4"/> Leads Registrados ({leads.length})
+                    <Users className="w-4 h-4"/> Leads ({leads.length})
                 </button>
                 <button 
                     onClick={() => setActiveTab('STORES')} 
@@ -115,12 +124,20 @@ export const SuperAdminView: React.FC<SuperAdminProps> = ({ onEditProduct, onNew
                 {activeTab === 'DEMO_PRODUCTS' && (
                     <div className="p-4 border-b border-slate-100 bg-slate-50/50 flex justify-between items-center">
                         <span className="text-xs font-bold text-slate-400 uppercase tracking-wider">Catálogo Base para Demos</span>
-                        <button 
-                            onClick={onNewProduct}
-                            className="bg-emerald-500 text-white px-4 py-2 rounded-xl font-bold text-xs flex items-center gap-2 shadow-lg shadow-emerald-200 hover:bg-emerald-600 transition-colors"
-                        >
-                            <Plus className="w-4 h-4"/> Nuevo Producto
-                        </button>
+                        <div className="flex gap-2">
+                            <button 
+                                onClick={handleRestoreDemo}
+                                className="bg-white border border-slate-200 text-slate-600 px-4 py-2 rounded-xl font-bold text-xs flex items-center gap-2 hover:bg-slate-50 transition-colors"
+                            >
+                                <RotateCcw className="w-4 h-4"/> Restaurar Defecto
+                            </button>
+                            <button 
+                                onClick={onNewProduct}
+                                className="bg-emerald-500 text-white px-4 py-2 rounded-xl font-bold text-xs flex items-center gap-2 shadow-lg shadow-emerald-200 hover:bg-emerald-600 transition-colors"
+                            >
+                                <Plus className="w-4 h-4"/> Nuevo Producto
+                            </button>
+                        </div>
                     </div>
                 )}
 
@@ -251,12 +268,15 @@ export const SuperAdminView: React.FC<SuperAdminProps> = ({ onEditProduct, onNew
                                 </tr>
                             ))}
 
-                            {((activeTab === 'LEADS' && leads.length === 0) || (activeTab === 'STORES' && stores.length === 0)) && (
+                            {((activeTab === 'LEADS' && leads.length === 0) || (activeTab === 'STORES' && stores.length === 0) || (activeTab === 'DEMO_PRODUCTS' && demoProducts.length === 0)) && (
                                 <tr>
                                     <td colSpan={5} className="p-12 text-center text-slate-300">
                                         <div className="flex flex-col items-center gap-3">
                                             <Database className="w-10 h-10 opacity-20"/>
                                             <p>No hay datos visibles.</p>
+                                            {activeTab === 'DEMO_PRODUCTS' && demoProducts.length === 0 && (
+                                                <button onClick={handleRestoreDemo} className="text-indigo-500 font-bold text-xs hover:underline">Restaurar Datos de Ejemplo</button>
+                                            )}
                                         </div>
                                     </td>
                                 </tr>
