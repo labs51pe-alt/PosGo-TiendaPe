@@ -132,56 +132,65 @@ export const StorageService = {
 
   // 2. Save Template to Supabase (Only Super Admin calls this)
   saveDemoTemplate: async (products: Product[]) => {
-      // Ensure "Demo Store" entry exists to satisfy Foreign Keys
-      const { data: storeExists } = await supabase.from('stores').select('id').eq('id', DEMO_TEMPLATE_ID).single();
-      if (!storeExists) {
-          await supabase.from('stores').insert({
-              id: DEMO_TEMPLATE_ID,
-              settings: DEFAULT_SETTINGS,
-              created_at: new Date().toISOString()
-          });
-      }
-
-      // This function specifically handles the bulk save or single updates if passed as array
-      for (const p of products) {
-          const payload: any = {
-              id: p.id,
-              name: p.name,
-              price: p.price,
-              stock: p.stock,
-              category: p.category,
-              barcode: p.barcode,
-              store_id: DEMO_TEMPLATE_ID
-          };
-          
-          const { error: prodError } = await supabase.from('products').upsert(payload);
-          if (prodError) {
-              console.error("Error saving demo product:", prodError);
-              continue;
+      try {
+          // A. Ensure "Demo Store" entry exists to satisfy Foreign Keys
+          const { data: storeExists } = await supabase.from('stores').select('id').eq('id', DEMO_TEMPLATE_ID).single();
+          if (!storeExists) {
+              await supabase.from('stores').upsert({
+                  id: DEMO_TEMPLATE_ID,
+                  settings: DEFAULT_SETTINGS,
+                  created_at: new Date().toISOString()
+              });
           }
-          
-          // Handle images
-          if (p.images) {
-              // Delete old images for this product/store combo
-              await supabase.from('product_images').delete()
-                  .eq('product_id', p.id)
-                  .eq('store_id', DEMO_TEMPLATE_ID);
+
+          // B. Iterate and Save Each Product
+          for (const p of products) {
+              const payload: any = {
+                  id: p.id,
+                  name: p.name,
+                  price: p.price,
+                  stock: p.stock,
+                  category: p.category,
+                  barcode: p.barcode,
+                  store_id: DEMO_TEMPLATE_ID
+              };
               
-              if (p.images.length > 0) {
-                  const imageInserts = p.images.map(imgData => ({
-                      product_id: p.id,
-                      image_data: imgData,
-                      store_id: DEMO_TEMPLATE_ID
-                  }));
+              const { error: prodError } = await supabase.from('products').upsert(payload);
+              if (prodError) {
+                  console.error("Error saving demo product:", prodError);
+                  continue; 
+              }
+              
+              // C. Handle images (Delete old -> Insert new)
+              // We only touch images if the 'images' array is present in the object
+              if (p.images) {
+                  // 1. Delete ALL images for this product in the demo store
+                  await supabase.from('product_images').delete()
+                      .eq('product_id', p.id)
+                      .eq('store_id', DEMO_TEMPLATE_ID);
                   
-                  const { error: imgError } = await supabase.from('product_images').insert(imageInserts);
-                  if (imgError) console.error("Error saving demo images:", imgError);
+                  // 2. Insert new images if any
+                  if (p.images.length > 0) {
+                      const imageInserts = p.images.map(imgData => ({
+                          product_id: p.id,
+                          image_data: imgData,
+                          store_id: DEMO_TEMPLATE_ID
+                      }));
+                      
+                      const { error: imgError } = await supabase.from('product_images').insert(imageInserts);
+                      if (imgError) console.error("Error saving demo images:", imgError);
+                  }
               }
           }
+      } catch (err) {
+          console.error("Critical error in saveDemoTemplate:", err);
       }
   },
 
   deleteDemoProduct: async (productId: string) => {
+      // First delete images
+      await supabase.from('product_images').delete().eq('product_id', productId).eq('store_id', DEMO_TEMPLATE_ID);
+      // Then delete product
       await supabase.from('products').delete().eq('id', productId).eq('store_id', DEMO_TEMPLATE_ID);
   },
 
@@ -190,7 +199,6 @@ export const StorageService = {
     if (isDemo()) {
         const s = localStorage.getItem(KEYS.PRODUCTS);
         if (!s) {
-            // If local storage is empty in demo, try fetching template (Async init required in App)
             return MOCK_PRODUCTS; 
         }
         return JSON.parse(s);
@@ -490,10 +498,8 @@ export const StorageService = {
   },
 
   resetDemoData: async () => {
-      // CRITICAL: Fetch the Cloud-Stored Demo Template
       const template = await StorageService.getDemoTemplate();
       
-      // Initialize Session with Template
       localStorage.setItem(KEYS.PRODUCTS, JSON.stringify(template));
       
       localStorage.setItem(KEYS.TRANSACTIONS, JSON.stringify([]));
