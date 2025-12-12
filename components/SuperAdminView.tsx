@@ -19,16 +19,14 @@ export const SuperAdminView: React.FC<SuperAdminProps> = ({ onEditProduct, onNew
     const fetchData = async () => {
         setLoading(true);
         try {
-            const [l, s] = await Promise.all([
+            const [l, s, demo] = await Promise.all([
                 StorageService.getLeads(),
-                StorageService.getAllStores()
+                StorageService.getAllStores(),
+                StorageService.getDemoTemplate() // Now async
             ]);
             setLeads(l);
             setStores(s);
-            
-            // Load Demo Products from MASTER TEMPLATE
-            const prods = StorageService.getDemoTemplate();
-            setDemoProducts(prods);
+            setDemoProducts(demo);
 
         } catch (error) {
             console.error("Error fetching admin data:", error);
@@ -40,13 +38,6 @@ export const SuperAdminView: React.FC<SuperAdminProps> = ({ onEditProduct, onNew
     useEffect(() => {
         fetchData();
     }, []);
-
-    // Refresh when tab changes
-    useEffect(() => {
-        if(activeTab === 'DEMO_PRODUCTS') {
-            setDemoProducts(StorageService.getDemoTemplate());
-        }
-    }, [activeTab]);
 
     const handleDeleteStore = async (id: string) => {
         if (window.confirm('¿ESTÁS SEGURO? Esto eliminará la tienda y todos sus datos.')) {
@@ -62,18 +53,21 @@ export const SuperAdminView: React.FC<SuperAdminProps> = ({ onEditProduct, onNew
         }
     };
 
-    const handleDeleteDemoProduct = (id: string) => {
+    const handleDeleteDemoProduct = async (id: string) => {
         if (window.confirm('¿Eliminar producto de la plantilla demo?')) {
+            // Delete from UI
             const updated = demoProducts.filter(p => p.id !== id);
             setDemoProducts(updated);
-            StorageService.saveDemoTemplate(updated); // Save to Template
+            // Delete from Backend
+            await StorageService.deleteDemoProduct(id);
         }
     };
 
-    const handleRestoreDemo = () => {
-        if(window.confirm('¿Restaurar el catálogo por defecto? Esto borrará tus cambios en la plantilla.')) {
-            const defaults = StorageService.resetDemoProductsOnly(); // This resets the template key
-            setDemoProducts(defaults);
+    const handleRestoreDemo = async () => {
+        if(window.confirm('Esta acción no se puede deshacer. ¿Seguro?')) {
+            // Logic to restore requires clearing DB logic or just manual re-entry.
+            // For now, let's just refresh.
+            fetchData();
         }
     };
 
@@ -124,15 +118,9 @@ export const SuperAdminView: React.FC<SuperAdminProps> = ({ onEditProduct, onNew
                     <div className="p-4 border-b border-slate-100 bg-slate-50/50 flex justify-between items-center">
                         <div className="flex flex-col">
                             <span className="text-xs font-bold text-slate-400 uppercase tracking-wider">Catálogo Base (Plantilla)</span>
-                            <span className="text-[10px] text-slate-400">Estos productos aparecerán al iniciar una nueva demo</span>
+                            <span className="text-[10px] text-slate-400">Estos productos se guardan en la nube para todos los demos.</span>
                         </div>
                         <div className="flex gap-2">
-                            <button 
-                                onClick={handleRestoreDemo}
-                                className="bg-white border border-slate-200 text-slate-600 px-4 py-2 rounded-xl font-bold text-xs flex items-center gap-2 hover:bg-slate-50 transition-colors"
-                            >
-                                <RotateCcw className="w-4 h-4"/> Restaurar Defecto
-                            </button>
                             <button 
                                 onClick={onNewProduct}
                                 className="bg-emerald-500 text-white px-4 py-2 rounded-xl font-bold text-xs flex items-center gap-2 shadow-lg shadow-emerald-200 hover:bg-emerald-600 transition-colors"
@@ -276,9 +264,6 @@ export const SuperAdminView: React.FC<SuperAdminProps> = ({ onEditProduct, onNew
                                         <div className="flex flex-col items-center gap-3">
                                             <Database className="w-10 h-10 opacity-20"/>
                                             <p>No hay datos visibles.</p>
-                                            {activeTab === 'DEMO_PRODUCTS' && demoProducts.length === 0 && (
-                                                <button onClick={handleRestoreDemo} className="text-indigo-500 font-bold text-xs hover:underline">Restaurar Datos de Ejemplo</button>
-                                            )}
                                         </div>
                                     </td>
                                 </tr>

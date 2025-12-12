@@ -12,9 +12,10 @@ const KEYS = {
   SUPPLIERS: 'lumina_suppliers',
   SHIFTS: 'lumina_shifts',
   MOVEMENTS: 'lumina_movements',
-  ACTIVE_SHIFT_ID: 'lumina_active_shift',
-  DEMO_TEMPLATE: 'lumina_demo_master_template' // New Key for Super Admin edits
+  ACTIVE_SHIFT_ID: 'lumina_active_shift'
 };
+
+const DEMO_TEMPLATE_ID = '00000000-0000-0000-0000-000000000000'; // Special UUID for the Master Template
 
 // Helper to check if we are in DEMO mode or REAL mode
 const isDemo = () => {
@@ -87,30 +88,97 @@ export const StorageService = {
       await supabase.from('stores').delete().eq('id', storeId);
   },
 
-  // === DEMO MANAGEMENT (FOR SUPER ADMIN) ===
-  // Gets the "Master Template" used to initialize new demos
-  getDemoTemplate: (): Product[] => {
-      const s = localStorage.getItem(KEYS.DEMO_TEMPLATE);
-      return s ? JSON.parse(s) : MOCK_PRODUCTS;
+  // === DEMO MANAGEMENT (CLOUD BASED) ===
+  
+  // 1. Fetch Template from Supabase (Used by Super Admin AND when initializing new Demos)
+  getDemoTemplate: async (): Promise<Product[]> => {
+      try {
+          const { data: productsData, error } = await supabase
+              .from('products')
+              .select('*')
+              .eq('store_id', DEMO_TEMPLATE_ID);
+          
+          if (error || !productsData || productsData.length === 0) {
+              return MOCK_PRODUCTS; // Fallback if DB is empty
+          }
+
+          const { data: imagesData } = await supabase
+              .from('product_images')
+              .select('*')
+              .eq('store_id', DEMO_TEMPLATE_ID);
+
+          return productsData.map((p: any) => {
+              const prodImages = imagesData 
+                  ? imagesData.filter((img: any) => img.product_id === p.id).map((img: any) => img.image_data)
+                  : [];
+
+              return {
+                  id: p.id,
+                  name: p.name,
+                  price: Number(p.price),
+                  category: p.category,
+                  stock: Number(p.stock),
+                  barcode: p.barcode,
+                  hasVariants: false, // Simplification for demo persistence
+                  variants: [],
+                  images: prodImages 
+              };
+          });
+      } catch (e) {
+          console.error("Error fetching demo template:", e);
+          return MOCK_PRODUCTS;
+      }
   },
-  // Saves changes to the "Master Template"
-  saveDemoTemplate: (products: Product[]) => {
-      localStorage.setItem(KEYS.DEMO_TEMPLATE, JSON.stringify(products));
+
+  // 2. Save Template to Supabase (Only Super Admin calls this)
+  saveDemoTemplate: async (products: Product[]) => {
+      // Logic: Sync the provided list with the DB for DEMO_TEMPLATE_ID
+      // A simple strategy: Delete all for this ID and Re-insert (for full sync)
+      // Or upsert. Let's stick to Upsert/Delete logic handled by Super Admin view individually or bulk.
+      
+      // For the "Save Product" button in Super Admin:
+      // It calls saveProductWithImages but we need to intercept it or use a specific function.
+      // We will reuse saveProducts but pass the DEMO_TEMPLATE_ID manually.
+      
+      // This function specifically handles the bulk save or single updates if passed as array
+      for (const p of products) {
+          const payload: any = {
+              id: p.id,
+              name: p.name,
+              price: p.price,
+              stock: p.stock,
+              category: p.category,
+              barcode: p.barcode,
+              store_id: DEMO_TEMPLATE_ID
+          };
+          await supabase.from('products').upsert(payload);
+          
+          // Handle images
+          if (p.images) {
+              await supabase.from('product_images').delete().eq('product_id', p.id).eq('store_id', DEMO_TEMPLATE_ID);
+              if (p.images.length > 0) {
+                  const imageInserts = p.images.map(imgData => ({
+                      product_id: p.id,
+                      image_data: imgData,
+                      store_id: DEMO_TEMPLATE_ID
+                  }));
+                  await supabase.from('product_images').insert(imageInserts);
+              }
+          }
+      }
   },
-  // Resets the template back to hardcoded code constants
-  resetDemoProductsOnly: (): Product[] => {
-      localStorage.removeItem(KEYS.DEMO_TEMPLATE); // Clear custom template
-      return MOCK_PRODUCTS;
+
+  deleteDemoProduct: async (productId: string) => {
+      await supabase.from('products').delete().eq('id', productId).eq('store_id', DEMO_TEMPLATE_ID);
   },
 
   // === PRODUCTS ===
   getProducts: async (): Promise<Product[]> => {
     if (isDemo()) {
         const s = localStorage.getItem(KEYS.PRODUCTS);
-        // If current session is empty, load from Template (which Super Admin manages)
         if (!s) {
-            const template = StorageService.getDemoTemplate();
-            return template;
+            // If local storage is empty in demo, try fetching template (Async init required in App)
+            return MOCK_PRODUCTS; 
         }
         return JSON.parse(s);
     } else {
@@ -144,12 +212,12 @@ export const StorageService = {
   
   saveProductWithImages: async (product: Product) => {
       if (isDemo()) {
-          // This saves to the CURRENT active session
-          const products = await StorageService.getProducts();
-          const index = products.findIndex(p => p.id === product.id);
+          // This saves to the CURRENT active local session (Browser)
+          const products = JSON.parse(localStorage.getItem(KEYS.PRODUCTS) || '[]');
+          const index = products.findIndex((p: any) => p.id === product.id);
           let updatedProducts;
           if (index >= 0) {
-              updatedProducts = products.map(p => p.id === product.id ? product : p);
+              updatedProducts = products.map((p: any) => p.id === product.id ? product : p);
           } else {
               updatedProducts = [...products, product];
           }
@@ -205,8 +273,7 @@ export const StorageService = {
                 barcode: p.barcode,
                 store_id: storeId
             };
-            const { error } = await supabase.from('products').upsert(payload);
-            if (error) console.error('Error saving product', error);
+            await supabase.from('products').upsert(payload);
         }
     }
   },
@@ -238,7 +305,8 @@ export const StorageService = {
   },
   saveTransaction: async (transaction: Transaction) => {
     if (isDemo()) {
-        const current = await StorageService.getTransactions();
+        const currentString = localStorage.getItem(KEYS.TRANSACTIONS);
+        const current = currentString ? JSON.parse(currentString) : [];
         localStorage.setItem(KEYS.TRANSACTIONS, JSON.stringify([transaction, ...current]));
     } else {
         const storeId = await getStoreId();
@@ -265,7 +333,8 @@ export const StorageService = {
     return s ? JSON.parse(s) : [];
   },
   savePurchase: async (purchase: Purchase) => {
-    const current = await StorageService.getPurchases();
+    const s = localStorage.getItem(KEYS.PURCHASES);
+    const current = s ? JSON.parse(s) : [];
     localStorage.setItem(KEYS.PURCHASES, JSON.stringify([purchase, ...current]));
   },
 
@@ -308,7 +377,8 @@ export const StorageService = {
     return s ? JSON.parse(s) : [];
   },
   saveSupplier: (supplier: Supplier) => {
-    const current = JSON.parse(localStorage.getItem(KEYS.SUPPLIERS) || '[]');
+    const s = localStorage.getItem(KEYS.SUPPLIERS);
+    const current = s ? JSON.parse(s) : [];
     localStorage.setItem(KEYS.SUPPLIERS, JSON.stringify([...current, supplier]));
   },
 
@@ -335,8 +405,9 @@ export const StorageService = {
   },
   saveShift: async (shift: CashShift) => {
     if (isDemo()) {
-        const shifts = await StorageService.getShifts();
-        const idx = shifts.findIndex(s => s.id === shift.id);
+        const s = localStorage.getItem(KEYS.SHIFTS);
+        const shifts = s ? JSON.parse(s) : [];
+        const idx = shifts.findIndex((x: any) => x.id === shift.id);
         if (idx >= 0) shifts[idx] = shift;
         else shifts.unshift(shift);
         localStorage.setItem(KEYS.SHIFTS, JSON.stringify(shifts));
@@ -379,7 +450,8 @@ export const StorageService = {
   },
   saveMovement: async (movement: CashMovement) => {
       if (isDemo()) {
-          const moves = await StorageService.getMovements();
+          const s = localStorage.getItem(KEYS.MOVEMENTS);
+          const moves = s ? JSON.parse(s) : [];
           localStorage.setItem(KEYS.MOVEMENTS, JSON.stringify([...moves, movement]));
       } else {
           const storeId = await getStoreId();
@@ -404,9 +476,11 @@ export const StorageService = {
       else localStorage.removeItem(KEYS.ACTIVE_SHIFT_ID);
   },
 
-  resetDemoData: () => {
-      // CRITICAL: Initialize PRODUCTS with the MASTER TEMPLATE (if exists) or defaults
-      const template = StorageService.getDemoTemplate();
+  resetDemoData: async () => {
+      // CRITICAL: Fetch the Cloud-Stored Demo Template
+      const template = await StorageService.getDemoTemplate();
+      
+      // Initialize Session with Template
       localStorage.setItem(KEYS.PRODUCTS, JSON.stringify(template));
       
       localStorage.setItem(KEYS.TRANSACTIONS, JSON.stringify([]));

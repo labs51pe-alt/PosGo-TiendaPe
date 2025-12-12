@@ -167,7 +167,7 @@ export const POSView = ({ products, cart, transactions = [], onAddToCart, onUpda
             </div>
 
             {/* === CONTENT === */}
-            <div className="flex-1 overflow-y-auto custom-scrollbar p-4 md:p-6 pb-28 md:pb-6">
+            <div className="flex-1 overflow-y-auto custom-scrollbar p-4 md:p-6 pb-32 md:pb-6">
                 
                 {/* TOOLBAR */}
                 <div className="flex flex-col md:flex-row gap-3 mb-6">
@@ -340,7 +340,7 @@ export const POSView = ({ products, cart, transactions = [], onAddToCart, onUpda
 
             {/* === MOBILE FLOATING CART BAR === */}
             {cart.length > 0 && (
-                <div className="lg:hidden fixed bottom-[85px] left-0 w-full px-4 z-40 animate-fade-in-up">
+                <div className="lg:hidden fixed bottom-[80px] left-0 w-full px-4 z-40 animate-fade-in-up">
                     <div className="absolute inset-0 top-4 bg-gradient-to-t from-white/90 to-transparent pointer-events-none -z-10 h-20"></div>
                     <button 
                         onClick={() => setIsMobileCartOpen(true)}

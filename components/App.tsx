@@ -103,12 +103,14 @@ const App: React.FC = () => {
     setUser(loggedInUser); 
     StorageService.saveSession(loggedInUser);
 
+    setLoading(true);
+
     if (loggedInUser.id === 'test-user-demo') {
-        StorageService.resetDemoData(); // This now loads from TEMPLATE
+        // Now waits for Supabase template fetch
+        await StorageService.resetDemoData();
         setTimeout(() => setShowOnboarding(true), 500); 
     }
 
-    setLoading(true);
     const [p, t, pur, set, c, sup, sh, mov] = await Promise.all([
         StorageService.getProducts(),
         StorageService.getTransactions(),
@@ -411,15 +413,12 @@ const App: React.FC = () => {
 
       // === CRITICAL FIX FOR SUPER ADMIN ===
       if (view === ViewState.SUPER_ADMIN) {
-          const demoTemplate = StorageService.getDemoTemplate(); // LOAD TEMPLATE
-          const index = demoTemplate.findIndex(p => p.id === pToSave.id);
-          let updated;
-          if (index >= 0) updated = demoTemplate.map(p => p.id === pToSave.id ? pToSave : p);
-          else updated = [...demoTemplate, pToSave];
+          // This now saves directly to SUPABASE
+          await StorageService.saveDemoTemplate([pToSave]);
           
-          StorageService.saveDemoTemplate(updated); // SAVE TO TEMPLATE
-          
-          // Hack to force refresh SuperAdminView if it's mounted
+          // Force refresh local state to see change immediately
+          const updatedTemplate = await StorageService.getDemoTemplate();
+          // Trick to refresh SuperAdminView
           setView(ViewState.POS);
           setTimeout(() => setView(ViewState.SUPER_ADMIN), 10);
       } else {

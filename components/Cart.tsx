@@ -132,8 +132,8 @@ export const Cart: React.FC<CartProps> = ({ items, onUpdateQuantity, onRemoveIte
         ))}
       </div>
 
-      {/* Footer Totals */}
-      <div className={`p-4 lg:p-6 bg-slate-50 border-t border-slate-200 ${onClose ? 'pb-10 lg:pb-6' : ''}`}>
+      {/* Footer Totals - INCREASED PADDING FOR MOBILE */}
+      <div className={`p-4 lg:p-6 bg-slate-50 border-t border-slate-200 pb-20 lg:pb-6`}>
         <div className="space-y-2 mb-4 lg:mb-6">
             <div className="flex justify-between text-slate-500 text-sm font-medium">
                 <span>Subtotal</span>
