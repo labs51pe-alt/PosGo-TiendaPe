@@ -288,8 +288,17 @@ const App: React.FC = () => {
       let pToSave = { ...currentProduct };
       if (pToSave.hasVariants && pToSave.variants) pToSave.stock = pToSave.variants.reduce((acc, v) => acc + (Number(v.stock) || 0), 0);
       
-      // If new, generate valid UUID
-      if(!pToSave.id) pToSave.id = crypto.randomUUID();
+      // FIX: Ensure valid UUID for Database
+      const isValidUUID = (id: string) => /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(id);
+      
+      // Check if current ID is a mock ID (e.g. "1", "15") or empty
+      const isInvalidId = !pToSave.id || !isValidUUID(pToSave.id);
+      const originalId = pToSave.id;
+
+      if (isInvalidId) {
+          const newId = crypto.randomUUID();
+          pToSave.id = newId;
+      }
 
       // === SUPER ADMIN / TEMPLATE MODE ===
       if (view === ViewState.SUPER_ADMIN) {
@@ -309,8 +318,18 @@ const App: React.FC = () => {
 
       // === NORMAL STORE MODE ===
       let updated; 
-      if (products.find(p => p.id === pToSave.id)) updated = products.map(p => p.id === pToSave.id ? pToSave : p); 
-      else updated = [...products, pToSave];
+      
+      // If the ID changed (it was a mock ID "1"), we treat it as a replacement of the old one in the local list
+      if (originalId && originalId !== pToSave.id) {
+           updated = products.map(p => p.id === originalId ? pToSave : p);
+      } else {
+           // Standard update or create
+           if (products.find(p => p.id === pToSave.id)) {
+               updated = products.map(p => p.id === pToSave.id ? pToSave : p); 
+           } else {
+               updated = [...products, pToSave];
+           }
+      }
 
       setProducts(updated); 
       // Use specific method to handle images

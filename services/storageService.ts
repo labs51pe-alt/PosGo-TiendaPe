@@ -127,8 +127,8 @@ export const StorageService = {
                   category: p.category,
                   stock: Number(p.stock),
                   barcode: p.barcode,
-                  hasVariants: false, // Simplificamos variantes para demo base
-                  variants: [],
+                  hasVariants: p.has_variants || false,
+                  variants: p.variants || [],
                   images: prodImages 
               };
           });
@@ -142,6 +142,13 @@ export const StorageService = {
   saveDemoProductToTemplate: async (product: Product): Promise<{ success: boolean; error?: string }> => {
       try {
           console.log("Saving demo product...", product.id);
+
+          // VALIDAR ID (Fix for invalid input syntax for type uuid)
+          const isValidUUID = (id: string) => /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(id);
+          let finalId = product.id;
+          if (!finalId || !isValidUUID(finalId)) {
+              finalId = crypto.randomUUID();
+          }
 
           // A. Asegurar que existe la Tienda Demo (Foreign Key)
           // Usamos maybeSingle() para evitar error JSON si no existe
@@ -166,12 +173,14 @@ export const StorageService = {
 
           // B. Guardar/Actualizar Producto
           const payload: any = {
-              id: product.id,
+              id: finalId,
               name: product.name,
               price: product.price,
               stock: product.stock,
               category: product.category,
               barcode: product.barcode,
+              has_variants: product.hasVariants || false,
+              variants: product.variants || [], // Include JSONB variants
               store_id: DEMO_TEMPLATE_ID
           };
           
@@ -185,7 +194,7 @@ export const StorageService = {
           if (product.images) {
               // 1. Borrar anteriores
               const { error: delError } = await supabase.from('product_images').delete()
-                  .eq('product_id', product.id)
+                  .eq('product_id', finalId)
                   .eq('store_id', DEMO_TEMPLATE_ID);
               
               if (delError) console.warn("Warning deleting old images:", delError);
@@ -193,7 +202,7 @@ export const StorageService = {
               // 2. Insertar nuevas
               if (product.images.length > 0) {
                   const imageInserts = product.images.map(imgData => ({
-                      product_id: product.id,
+                      product_id: finalId,
                       image_data: imgData, // Asegurarse que es string base64
                       store_id: DEMO_TEMPLATE_ID
                   }));
@@ -252,8 +261,8 @@ export const StorageService = {
                 category: p.category,
                 stock: Number(p.stock),
                 barcode: p.barcode,
-                hasVariants: false, 
-                variants: [],
+                hasVariants: p.has_variants || false, 
+                variants: p.variants || [],
                 images: prodImages 
             };
         });
@@ -283,6 +292,8 @@ export const StorageService = {
                 stock: product.stock,
                 category: product.category,
                 barcode: product.barcode,
+                has_variants: product.hasVariants || false,
+                variants: product.variants || [],
                 store_id: storeId
           };
           
@@ -317,6 +328,8 @@ export const StorageService = {
                 stock: p.stock,
                 category: p.category,
                 barcode: p.barcode,
+                has_variants: p.hasVariants || false,
+                variants: p.variants || [],
                 store_id: storeId
             };
             await supabase.from('products').upsert(payload);
