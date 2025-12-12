@@ -167,7 +167,7 @@ export const POSView = ({ products, cart, transactions = [], onAddToCart, onUpda
             </div>
 
             {/* === CONTENT === */}
-            <div className="flex-1 overflow-y-auto custom-scrollbar p-4 md:p-6 pb-24 md:pb-6">
+            <div className="flex-1 overflow-y-auto custom-scrollbar p-4 md:p-6 pb-28 md:pb-6">
                 
                 {/* TOOLBAR */}
                 <div className="flex flex-col md:flex-row gap-3 mb-6">
@@ -340,7 +340,8 @@ export const POSView = ({ products, cart, transactions = [], onAddToCart, onUpda
 
             {/* === MOBILE FLOATING CART BAR === */}
             {cart.length > 0 && (
-                <div className="lg:hidden fixed bottom-[70px] left-0 w-full px-4 z-40 animate-fade-in-up">
+                <div className="lg:hidden fixed bottom-[85px] left-0 w-full px-4 z-40 animate-fade-in-up">
+                    <div className="absolute inset-0 top-4 bg-gradient-to-t from-white/90 to-transparent pointer-events-none -z-10 h-20"></div>
                     <button 
                         onClick={() => setIsMobileCartOpen(true)}
                         className="w-full bg-slate-900 text-white p-4 rounded-2xl shadow-2xl flex justify-between items-center"
@@ -366,7 +367,7 @@ export const POSView = ({ products, cart, transactions = [], onAddToCart, onUpda
             {isMobileCartOpen && (
                 <div className="fixed inset-0 z-[60] lg:hidden flex flex-col">
                     <div className="absolute inset-0 bg-slate-900/60 backdrop-blur-sm" onClick={() => setIsMobileCartOpen(false)}></div>
-                    <div className="relative mt-auto h-[80vh] bg-white rounded-t-[2.5rem] shadow-[0_-10px_40px_rgba(0,0,0,0.2)] flex flex-col animate-fade-in-up overflow-hidden">
+                    <div className="relative mt-auto h-[85vh] bg-white rounded-t-[2.5rem] shadow-[0_-10px_40px_rgba(0,0,0,0.2)] flex flex-col animate-fade-in-up overflow-hidden">
                         <Cart 
                             items={cart} 
                             onUpdateQuantity={onUpdateCart} 

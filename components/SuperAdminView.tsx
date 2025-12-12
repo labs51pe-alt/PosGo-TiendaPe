@@ -10,7 +10,7 @@ interface SuperAdminProps {
 }
 
 export const SuperAdminView: React.FC<SuperAdminProps> = ({ onEditProduct, onNewProduct }) => {
-    const [activeTab, setActiveTab] = useState<'LEADS' | 'STORES' | 'DEMO_PRODUCTS'>('DEMO_PRODUCTS'); // Default to DEMO_PRODUCTS for visibility
+    const [activeTab, setActiveTab] = useState<'LEADS' | 'STORES' | 'DEMO_PRODUCTS'>('DEMO_PRODUCTS'); 
     const [leads, setLeads] = useState<Lead[]>([]);
     const [stores, setStores] = useState<Store[]>([]);
     const [demoProducts, setDemoProducts] = useState<Product[]>([]);
@@ -26,9 +26,8 @@ export const SuperAdminView: React.FC<SuperAdminProps> = ({ onEditProduct, onNew
             setLeads(l);
             setStores(s);
             
-            // Load Demo Products (Sync because localstorage)
-            // Ensure we get something even if empty initially
-            const prods = StorageService.getDemoProducts();
+            // Load Demo Products from MASTER TEMPLATE
+            const prods = StorageService.getDemoTemplate();
             setDemoProducts(prods);
 
         } catch (error) {
@@ -42,10 +41,10 @@ export const SuperAdminView: React.FC<SuperAdminProps> = ({ onEditProduct, onNew
         fetchData();
     }, []);
 
-    // Also refresh demo products when switching tabs, in case they were edited
+    // Refresh when tab changes
     useEffect(() => {
         if(activeTab === 'DEMO_PRODUCTS') {
-            setDemoProducts(StorageService.getDemoProducts());
+            setDemoProducts(StorageService.getDemoTemplate());
         }
     }, [activeTab]);
 
@@ -64,16 +63,16 @@ export const SuperAdminView: React.FC<SuperAdminProps> = ({ onEditProduct, onNew
     };
 
     const handleDeleteDemoProduct = (id: string) => {
-        if (window.confirm('¿Eliminar producto del demo?')) {
+        if (window.confirm('¿Eliminar producto de la plantilla demo?')) {
             const updated = demoProducts.filter(p => p.id !== id);
             setDemoProducts(updated);
-            StorageService.saveDemoProducts(updated);
+            StorageService.saveDemoTemplate(updated); // Save to Template
         }
     };
 
     const handleRestoreDemo = () => {
-        if(window.confirm('¿Restaurar el catálogo por defecto? Esto borrará los cambios actuales en la demo.')) {
-            const defaults = StorageService.resetDemoProductsOnly();
+        if(window.confirm('¿Restaurar el catálogo por defecto? Esto borrará tus cambios en la plantilla.')) {
+            const defaults = StorageService.resetDemoProductsOnly(); // This resets the template key
             setDemoProducts(defaults);
         }
     };
@@ -114,7 +113,7 @@ export const SuperAdminView: React.FC<SuperAdminProps> = ({ onEditProduct, onNew
                     onClick={() => setActiveTab('DEMO_PRODUCTS')} 
                     className={`px-6 py-3 rounded-xl text-sm font-bold transition-all flex items-center gap-2 ${activeTab === 'DEMO_PRODUCTS' ? 'bg-indigo-600 text-white shadow-lg shadow-indigo-200' : 'bg-white text-slate-500'}`}
                 >
-                    <Package className="w-4 h-4"/> Productos Demo ({demoProducts.length})
+                    <Package className="w-4 h-4"/> Plantilla Demo ({demoProducts.length})
                 </button>
             </div>
 
@@ -123,7 +122,10 @@ export const SuperAdminView: React.FC<SuperAdminProps> = ({ onEditProduct, onNew
                 {/* TOOLBAR FOR DEMO PRODUCTS */}
                 {activeTab === 'DEMO_PRODUCTS' && (
                     <div className="p-4 border-b border-slate-100 bg-slate-50/50 flex justify-between items-center">
-                        <span className="text-xs font-bold text-slate-400 uppercase tracking-wider">Catálogo Base para Demos</span>
+                        <div className="flex flex-col">
+                            <span className="text-xs font-bold text-slate-400 uppercase tracking-wider">Catálogo Base (Plantilla)</span>
+                            <span className="text-[10px] text-slate-400">Estos productos aparecerán al iniciar una nueva demo</span>
+                        </div>
                         <div className="flex gap-2">
                             <button 
                                 onClick={handleRestoreDemo}
@@ -167,7 +169,7 @@ export const SuperAdminView: React.FC<SuperAdminProps> = ({ onEditProduct, onNew
                                         <th className="p-6">Producto</th>
                                         <th className="p-6">Categoría</th>
                                         <th className="p-6 text-right">Precio</th>
-                                        <th className="p-6 text-center">Stock</th>
+                                        <th className="p-6 text-center">Stock Base</th>
                                         <th className="p-6 text-right">Acciones</th>
                                     </>
                                 )}

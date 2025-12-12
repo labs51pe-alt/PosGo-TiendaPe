@@ -12,7 +12,8 @@ const KEYS = {
   SUPPLIERS: 'lumina_suppliers',
   SHIFTS: 'lumina_shifts',
   MOVEMENTS: 'lumina_movements',
-  ACTIVE_SHIFT_ID: 'lumina_active_shift'
+  ACTIVE_SHIFT_ID: 'lumina_active_shift',
+  DEMO_TEMPLATE: 'lumina_demo_master_template' // New Key for Super Admin edits
 };
 
 // Helper to check if we are in DEMO mode or REAL mode
@@ -57,13 +58,12 @@ export const StorageService = {
   // === SUPER ADMIN / LEADS ===
   saveLead: async (lead: Omit<Lead, 'id' | 'created_at'>) => {
       try {
-          // Changed to Upsert to handle duplicates based on phone constraint
           const { data, error } = await supabase.from('leads').upsert({
               name: lead.name,
               business_name: lead.business_name,
               phone: lead.phone,
               status: 'NEW'
-          }, { onConflict: 'phone' }).select(); // Requires unique constraint on 'phone' in DB
+          }, { onConflict: 'phone' }).select();
           
           if (error) throw error;
       } catch (e) {
@@ -88,15 +88,18 @@ export const StorageService = {
   },
 
   // === DEMO MANAGEMENT (FOR SUPER ADMIN) ===
-  getDemoProducts: (): Product[] => {
-      const s = localStorage.getItem(KEYS.PRODUCTS);
+  // Gets the "Master Template" used to initialize new demos
+  getDemoTemplate: (): Product[] => {
+      const s = localStorage.getItem(KEYS.DEMO_TEMPLATE);
       return s ? JSON.parse(s) : MOCK_PRODUCTS;
   },
-  saveDemoProducts: (products: Product[]) => {
-      localStorage.setItem(KEYS.PRODUCTS, JSON.stringify(products));
+  // Saves changes to the "Master Template"
+  saveDemoTemplate: (products: Product[]) => {
+      localStorage.setItem(KEYS.DEMO_TEMPLATE, JSON.stringify(products));
   },
+  // Resets the template back to hardcoded code constants
   resetDemoProductsOnly: (): Product[] => {
-      localStorage.setItem(KEYS.PRODUCTS, JSON.stringify(MOCK_PRODUCTS));
+      localStorage.removeItem(KEYS.DEMO_TEMPLATE); // Clear custom template
       return MOCK_PRODUCTS;
   },
 
@@ -104,20 +107,22 @@ export const StorageService = {
   getProducts: async (): Promise<Product[]> => {
     if (isDemo()) {
         const s = localStorage.getItem(KEYS.PRODUCTS);
-        return s ? JSON.parse(s) : MOCK_PRODUCTS;
+        // If current session is empty, load from Template (which Super Admin manages)
+        if (!s) {
+            const template = StorageService.getDemoTemplate();
+            return template;
+        }
+        return JSON.parse(s);
     } else {
         const storeId = await getStoreId();
         if(!storeId) return []; 
 
-        // 1. Fetch Products
         const { data: productsData, error: productsError } = await supabase.from('products').select('*').eq('store_id', storeId);
         if (productsError || !productsData) return [];
 
-        // 2. Fetch Images for this store's products
         const { data: imagesData } = await supabase.from('product_images').select('*').eq('store_id', storeId);
         
         return productsData.map((p: any) => {
-            // Filter images for this product
             const prodImages = imagesData 
                 ? imagesData.filter((img: any) => img.product_id === p.id).map((img: any) => img.image_data)
                 : [];
@@ -131,15 +136,15 @@ export const StorageService = {
                 barcode: p.barcode,
                 hasVariants: false, 
                 variants: [],
-                images: prodImages // Assign images array
+                images: prodImages 
             };
         });
     }
   },
   
-  // New Method specifically to handle saving product + images logic
   saveProductWithImages: async (product: Product) => {
       if (isDemo()) {
+          // This saves to the CURRENT active session
           const products = await StorageService.getProducts();
           const index = products.findIndex(p => p.id === product.id);
           let updatedProducts;
@@ -153,7 +158,6 @@ export const StorageService = {
           const storeId = await getStoreId();
           if (!storeId) return;
 
-          // 1. Save Product Info
           const payload: any = {
                 id: product.id,
                 name: product.name,
@@ -170,11 +174,8 @@ export const StorageService = {
               return;
           }
 
-          // 2. Sync Images (Simple Strategy: Delete all for product, re-insert)
-          // Ideally we would diff this, but for < 2 images, delete/insert is fine.
           if (product.images) {
               await supabase.from('product_images').delete().eq('product_id', product.id);
-              
               if (product.images.length > 0) {
                   const imageInserts = product.images.map(imgData => ({
                       product_id: product.id,
@@ -187,7 +188,6 @@ export const StorageService = {
       }
   },
 
-  // Used for bulk stock updates (e.g. after purchase) - Does NOT touch images to be safe/fast
   saveProducts: async (products: Product[]) => {
     if (isDemo()) {
         localStorage.setItem(KEYS.PRODUCTS, JSON.stringify(products));
@@ -211,7 +211,7 @@ export const StorageService = {
     }
   },
 
-  // === TRANSACTIONS ===
+  // === TRANSACTIONS & OTHERS ===
   getTransactions: async (): Promise<Transaction[]> => {
     if (isDemo()) {
         const s = localStorage.getItem(KEYS.TRANSACTIONS);
@@ -219,7 +219,6 @@ export const StorageService = {
     } else {
         const storeId = await getStoreId();
         if(!storeId) return [];
-
         const { data, error } = await supabase.from('transactions').select('*').eq('store_id', storeId).order('date', { ascending: false });
         if (error || !data) return [];
         return data.map((t: any) => ({
@@ -244,7 +243,6 @@ export const StorageService = {
     } else {
         const storeId = await getStoreId();
         if (!storeId) return;
-
         const { error } = await supabase.from('transactions').insert({
             id: transaction.id,
             shift_id: transaction.shiftId,
@@ -262,7 +260,6 @@ export const StorageService = {
     }
   },
 
-  // === PURCHASES ===
   getPurchases: async (): Promise<Purchase[]> => {
     const s = localStorage.getItem(KEYS.PURCHASES);
     return s ? JSON.parse(s) : [];
@@ -272,7 +269,6 @@ export const StorageService = {
     localStorage.setItem(KEYS.PURCHASES, JSON.stringify([purchase, ...current]));
   },
 
-  // === SETTINGS ===
   getSettings: async (): Promise<StoreSettings> => {
     if (isDemo()) {
         const s = localStorage.getItem(KEYS.SETTINGS);
@@ -280,7 +276,6 @@ export const StorageService = {
     } else {
         const storeId = await getStoreId();
         if (!storeId) return DEFAULT_SETTINGS;
-
         const { data } = await supabase.from('stores').select('settings').eq('id', storeId).single();
         return data?.settings || DEFAULT_SETTINGS;
     }
@@ -296,7 +291,6 @@ export const StorageService = {
     }
   },
 
-  // === CUSTOMERS ===
   getCustomers: async (): Promise<Customer[]> => {
     if (isDemo()) {
         const s = localStorage.getItem(KEYS.CUSTOMERS);
@@ -309,7 +303,6 @@ export const StorageService = {
     }
   },
   
-  // === SUPPLIERS ===
   getSuppliers: (): Supplier[] => {
     const s = localStorage.getItem(KEYS.SUPPLIERS);
     return s ? JSON.parse(s) : [];
@@ -319,7 +312,6 @@ export const StorageService = {
     localStorage.setItem(KEYS.SUPPLIERS, JSON.stringify([...current, supplier]));
   },
 
-  // === SHIFTS ===
   getShifts: async (): Promise<CashShift[]> => {
     if (isDemo()) {
         const s = localStorage.getItem(KEYS.SHIFTS);
@@ -351,7 +343,6 @@ export const StorageService = {
     } else {
          const storeId = await getStoreId();
          if (!storeId) return;
-
          const payload: any = {
              id: shift.id,
              start_time: shift.startTime,
@@ -367,7 +358,6 @@ export const StorageService = {
     }
   },
   
-  // === MOVEMENTS ===
   getMovements: async (): Promise<CashMovement[]> => {
       if (isDemo()) {
           const s = localStorage.getItem(KEYS.MOVEMENTS);
@@ -394,7 +384,6 @@ export const StorageService = {
       } else {
           const storeId = await getStoreId();
           if (!storeId) return;
-
           await supabase.from('cash_movements').insert({
               id: movement.id,
               shift_id: movement.shiftId,
@@ -416,7 +405,10 @@ export const StorageService = {
   },
 
   resetDemoData: () => {
-      localStorage.setItem(KEYS.PRODUCTS, JSON.stringify(MOCK_PRODUCTS));
+      // CRITICAL: Initialize PRODUCTS with the MASTER TEMPLATE (if exists) or defaults
+      const template = StorageService.getDemoTemplate();
+      localStorage.setItem(KEYS.PRODUCTS, JSON.stringify(template));
+      
       localStorage.setItem(KEYS.TRANSACTIONS, JSON.stringify([]));
       localStorage.setItem(KEYS.PURCHASES, JSON.stringify([]));
       localStorage.setItem(KEYS.SHIFTS, JSON.stringify([]));

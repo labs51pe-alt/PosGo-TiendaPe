@@ -104,7 +104,7 @@ const App: React.FC = () => {
     StorageService.saveSession(loggedInUser);
 
     if (loggedInUser.id === 'test-user-demo') {
-        StorageService.resetDemoData();
+        StorageService.resetDemoData(); // This now loads from TEMPLATE
         setTimeout(() => setShowOnboarding(true), 500); 
     }
 
@@ -409,14 +409,17 @@ const App: React.FC = () => {
       
       if(!pToSave.id) pToSave.id = crypto.randomUUID();
 
+      // === CRITICAL FIX FOR SUPER ADMIN ===
       if (view === ViewState.SUPER_ADMIN) {
-          const demoProducts = StorageService.getDemoProducts();
-          const index = demoProducts.findIndex(p => p.id === pToSave.id);
+          const demoTemplate = StorageService.getDemoTemplate(); // LOAD TEMPLATE
+          const index = demoTemplate.findIndex(p => p.id === pToSave.id);
           let updated;
-          if (index >= 0) updated = demoProducts.map(p => p.id === pToSave.id ? pToSave : p);
-          else updated = [...demoProducts, pToSave];
+          if (index >= 0) updated = demoTemplate.map(p => p.id === pToSave.id ? pToSave : p);
+          else updated = [...demoTemplate, pToSave];
           
-          StorageService.saveDemoProducts(updated);
+          StorageService.saveDemoTemplate(updated); // SAVE TO TEMPLATE
+          
+          // Hack to force refresh SuperAdminView if it's mounted
           setView(ViewState.POS);
           setTimeout(() => setView(ViewState.SUPER_ADMIN), 10);
       } else {
