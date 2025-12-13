@@ -160,7 +160,13 @@ export const StorageService = {
       try {
           console.log("Saving demo product to cloud...", product.id);
 
-          // Attempt to ensure store exists (might fail RLS, ignore)
+          // 1. VERIFY SESSION FIRST
+          const { data: { session }, error: sessionError } = await supabase.auth.getSession();
+          if (sessionError || !session) {
+              return { success: false, error: "⚠️ No hay sesión de Supabase activa. Debes iniciar sesión como Super Admin en modo 'Cloud' para editar la plantilla global." };
+          }
+
+          // 2. UPSERT STORE (If needed)
           const { error: storeUpsertError } = await supabase.from('stores').upsert({
               id: DEMO_TEMPLATE_ID,
               settings: DEFAULT_SETTINGS,
@@ -168,10 +174,10 @@ export const StorageService = {
           });
           
           if (storeUpsertError) {
-             console.warn("Store upsert warning (expected if RLS blocks):", storeUpsertError.message);
+             console.warn("Store upsert warning:", storeUpsertError.message);
           }
 
-          // Save Product
+          // 3. SAVE PRODUCT
           const payload: any = {
               id: product.id,
               name: product.name,
@@ -189,12 +195,12 @@ export const StorageService = {
               if (prodError.message.includes('row-level security')) {
                   console.error("%c[SQL FIX REQUIRED] Para que esto funcione, ejecuta esto en Supabase SQL Editor:", "color: red; font-size: 12px");
                   console.log(`CREATE POLICY "Public Template Access" ON "public"."products" FOR ALL USING (store_id = '${DEMO_TEMPLATE_ID}') WITH CHECK (store_id = '${DEMO_TEMPLATE_ID}');`);
-                  return { success: true, error: "⚠️ Error de Permisos (RLS). Se guardó LOCALMENTE, pero no en la nube. Revisa la consola." };
+                  return { success: true, error: "⚠️ Error de Permisos (RLS). Usa el botón 'Configurar Permisos' para obtener el código SQL." };
               }
               throw prodError;
           }
 
-          // Save Images
+          // 4. SAVE IMAGES
           if (product.images) {
               await supabase.from('product_images').delete().eq('product_id', product.id).eq('store_id', DEMO_TEMPLATE_ID);
               if (product.images.length > 0) {
@@ -203,7 +209,11 @@ export const StorageService = {
                       image_data: imgData, 
                       store_id: DEMO_TEMPLATE_ID
                   }));
-                  await supabase.from('product_images').insert(imageInserts);
+                  
+                  const { error: imgError } = await supabase.from('product_images').insert(imageInserts);
+                  if (imgError && imgError.message.includes('row-level security')) {
+                      return { success: true, error: "⚠️ Producto guardado, pero IMÁGENES fallaron por RLS. Configura los permisos." };
+                  }
               }
           }
 

@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { Lead, Store, Product } from '../types';
 import { StorageService } from '../services/storageService';
-import { Users, Building2, Trash2, MessageCircle, Phone, Calendar, RefreshCw, ShieldAlert, Check, Database, Package, Plus, Edit, RotateCcw } from 'lucide-react';
+import { Users, Building2, Trash2, MessageCircle, Phone, Calendar, RefreshCw, ShieldAlert, Check, Database, Package, Plus, Edit, RotateCcw, Lock, Copy, Terminal, X } from 'lucide-react';
 import { CATEGORIES } from '../constants';
 
 interface SuperAdminProps {
@@ -16,6 +16,7 @@ export const SuperAdminView: React.FC<SuperAdminProps> = ({ onEditProduct, onNew
     const [stores, setStores] = useState<Store[]>([]);
     const [demoProducts, setDemoProducts] = useState<Product[]>([]);
     const [loading, setLoading] = useState(true);
+    const [showSqlHelp, setShowSqlHelp] = useState(false);
 
     const fetchData = async () => {
         setLoading(true);
@@ -65,6 +66,28 @@ export const SuperAdminView: React.FC<SuperAdminProps> = ({ onEditProduct, onNew
         const text = `Hola ${name}, te contacto desde PosGo! 🚀 ¿Cómo podemos ayudarte?`;
         window.open(`https://wa.me/${phone}?text=${encodeURIComponent(text)}`, '_blank');
     };
+    
+    const copyToClipboard = (text: string) => {
+        navigator.clipboard.writeText(text);
+        alert("Código copiado al portapapeles");
+    };
+
+    const SQL_CODE = `
+-- 1. Permitir acceso a la Plantilla Global en PRODUCTOS
+CREATE POLICY "Public Template Access" ON "public"."products"
+FOR ALL USING (store_id = '00000000-0000-0000-0000-000000000000')
+WITH CHECK (store_id = '00000000-0000-0000-0000-000000000000');
+
+-- 2. Permitir acceso a las IMAGENES de la plantilla
+CREATE POLICY "Public Template Images" ON "public"."product_images"
+FOR ALL USING (store_id = '00000000-0000-0000-0000-000000000000')
+WITH CHECK (store_id = '00000000-0000-0000-0000-000000000000');
+
+-- 3. Permitir crear el Store de la Plantilla
+CREATE POLICY "Public Template Store" ON "public"."stores"
+FOR ALL USING (id = '00000000-0000-0000-0000-000000000000')
+WITH CHECK (id = '00000000-0000-0000-0000-000000000000');
+`;
 
     return (
         <div className="p-8 h-full bg-[#f8fafc] flex flex-col">
@@ -111,6 +134,12 @@ export const SuperAdminView: React.FC<SuperAdminProps> = ({ onEditProduct, onNew
                             <span className="text-[10px] text-slate-400">Estos productos se guardan en la nube para todos los demos.</span>
                         </div>
                         <div className="flex gap-2">
+                             <button 
+                                onClick={() => setShowSqlHelp(true)}
+                                className="bg-slate-800 text-white px-4 py-2 rounded-xl font-bold text-xs flex items-center gap-2 shadow-lg hover:bg-black transition-colors"
+                            >
+                                <Terminal className="w-4 h-4"/> Configurar Permisos
+                            </button>
                             <button 
                                 onClick={onNewProduct}
                                 className="bg-emerald-500 text-white px-4 py-2 rounded-xl font-bold text-xs flex items-center gap-2 shadow-lg shadow-emerald-200 hover:bg-emerald-600 transition-colors"
@@ -262,6 +291,48 @@ export const SuperAdminView: React.FC<SuperAdminProps> = ({ onEditProduct, onNew
                     </table>
                 </div>
             </div>
+
+            {/* SQL HELP MODAL */}
+            {showSqlHelp && (
+                <div className="fixed inset-0 bg-slate-900/80 backdrop-blur-sm z-[200] flex items-center justify-center p-4">
+                    <div className="bg-white rounded-[2rem] w-full max-w-2xl max-h-[90vh] flex flex-col shadow-2xl animate-fade-in-up">
+                        <div className="p-6 border-b border-slate-100 flex justify-between items-center bg-slate-50">
+                            <h3 className="font-black text-xl text-slate-800 flex items-center gap-2">
+                                <Terminal className="w-6 h-6 text-slate-600"/> Configuración de Permisos (RLS)
+                            </h3>
+                            <button onClick={() => setShowSqlHelp(false)} className="p-2 hover:bg-slate-200 rounded-full transition-colors"><X className="w-5 h-5"/></button>
+                        </div>
+                        <div className="p-6 overflow-y-auto custom-scrollbar">
+                            <p className="text-sm text-slate-600 mb-4 font-medium">
+                                Si obtienes el error <span className="text-red-500 font-mono bg-red-50 px-1 rounded">new row violates row-level security</span>, es porque Supabase bloquea la escritura en la Plantilla Global (ID: 0000...) por defecto.
+                            </p>
+                            <div className="bg-slate-900 rounded-2xl p-4 relative group">
+                                <button 
+                                    onClick={() => copyToClipboard(SQL_CODE)}
+                                    className="absolute top-4 right-4 text-slate-400 hover:text-white p-2 rounded-lg bg-white/10 hover:bg-white/20 transition-all"
+                                    title="Copiar SQL"
+                                >
+                                    <Copy className="w-4 h-4"/>
+                                </button>
+                                <pre className="font-mono text-xs text-emerald-400 whitespace-pre-wrap overflow-x-auto">
+                                    {SQL_CODE}
+                                </pre>
+                            </div>
+                            <div className="mt-6 flex gap-4 items-start bg-indigo-50 p-4 rounded-xl">
+                                <div className="p-2 bg-indigo-100 rounded-lg text-indigo-600 shrink-0">
+                                    <Database className="w-5 h-5"/>
+                                </div>
+                                <div>
+                                    <h4 className="font-bold text-indigo-900 text-sm mb-1">¿Dónde ejecuto esto?</h4>
+                                    <p className="text-xs text-indigo-700/80">
+                                        Ve a tu panel de Supabase &gt; SQL Editor &gt; Nuevo Query. Pega el código de arriba y dale a "Run". Esto habilitará la escritura en la plantilla maestra para todos.
+                                    </p>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            )}
         </div>
     );
 };
