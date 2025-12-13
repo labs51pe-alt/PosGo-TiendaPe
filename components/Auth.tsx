@@ -85,7 +85,9 @@ export const Auth: React.FC<AuthProps> = ({ onLogin }) => {
     }
 
     setLoading(true);
-    const fullPhone = `${countryCode}${phoneNumber}`;
+    // Remove any non-digit characters just in case
+    const cleanPhone = phoneNumber.replace(/\D/g, '');
+    const fullPhone = `${countryCode}${cleanPhone}`;
 
     if (activeTab === 'CLIENT') {
         // --- EXISTING SUPABASE FLOW ---
@@ -116,23 +118,25 @@ export const Auth: React.FC<AuthProps> = ({ onLogin }) => {
             });
 
             // 2. Trigger n8n Webhook for WhatsApp
-            const payload = {
-                name: demoName,
-                phone: fullPhone,
-                business_name: demoBusiness,
-                otp: randomOtp,
-                event: "verification_request",
-                date: new Date().toISOString()
-            };
+            // FIX: Using URLSearchParams (application/x-www-form-urlencoded) to bypass CORS preflight issues
+            // on some n8n configurations. n8n reads this into $json.body automatically.
+            const formData = new URLSearchParams();
+            formData.append('name', demoName);
+            formData.append('phone', fullPhone);
+            formData.append('business_name', demoBusiness);
+            formData.append('otp', randomOtp);
+            formData.append('event', 'verification_request');
+            formData.append('date', new Date().toISOString());
 
             const webhookUrl = 'https://webhook.red51.site/webhook/posgo_demos';
+            
             await fetch(webhookUrl, {
                 method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify(payload)
-            }).catch(err => console.warn("Webhook CORS warning (expected)", err));
+                headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+                body: formData
+            }).catch(err => console.warn("Webhook fetch warning (check n8n active status):", err));
 
-            console.log("Demo OTP Generated:", randomOtp);
+            console.log("Demo OTP Generated & Sent:", randomOtp);
             setLoginStep('OTP');
         } catch (error) {
             console.error("Error triggering automation:", error);
@@ -146,7 +150,8 @@ export const Auth: React.FC<AuthProps> = ({ onLogin }) => {
   const handleVerifyOtp = async (e: React.FormEvent) => {
     e.preventDefault();
     setLoading(true);
-    const fullPhone = `${countryCode}${phoneNumber}`;
+    const cleanPhone = phoneNumber.replace(/\D/g, '');
+    const fullPhone = `${countryCode}${cleanPhone}`;
 
     if (activeTab === 'CLIENT') {
         try {
