@@ -107,7 +107,7 @@ const App: React.FC = () => {
     setLoading(true);
 
     if (loggedInUser.id === 'test-user-demo') {
-        // Here we ensure the new user gets the FRESH template from cloud
+        // AWAIT IS CRITICAL HERE: Ensures we get the cloud template before rendering
         await StorageService.resetDemoData();
         setTimeout(() => setShowOnboarding(true), 500); 
     }

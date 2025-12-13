@@ -94,17 +94,8 @@ export const StorageService = {
   
   // 1. OBTENER PLANTILLA
   getDemoTemplate: async (): Promise<Product[]> => {
-      // 0. Check Auth. If no cloud access (Local God Mode), try local cache first to preserve offline edits.
-      const { data: { user } } = await supabase.auth.getUser();
-      const hasCloudAccess = !!user;
-
-      if (!hasCloudAccess) {
-          const cached = localStorage.getItem(KEYS.DEMO_TEMPLATE);
-          if (cached) return JSON.parse(cached);
-          // If no local cache, falls through to mock/cloud try (which will likely fail or return stale public data)
-      }
-
-      // 1. Intentar obtener de la nube
+      // INTENTAR SIEMPRE DESDE LA NUBE PRIMERO
+      // (Para asegurar que los usuarios Demo reciban las últimas actualizaciones del Super Admin)
       try {
           const { data: productsData, error: prodError } = await supabase
               .from('products')
@@ -139,11 +130,12 @@ export const StorageService = {
               });
 
               // Guardar en caché local para uso offline futuro
+              console.log("Template fetched from cloud successfully.");
               localStorage.setItem(KEYS.DEMO_TEMPLATE, JSON.stringify(mapped));
               return mapped;
           }
       } catch (e) {
-          console.warn("Error fetching cloud template, falling back to local.", e);
+          console.warn("Error fetching cloud template, falling back to local cache.", e);
       }
 
       // 2. Fallback a caché local si la nube falla (o estaba vacía)

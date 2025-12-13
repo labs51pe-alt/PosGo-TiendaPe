@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { StoreSettings } from '../types';
-import { Save, Store, Receipt, Coins } from 'lucide-react';
+import { Save, Store, Receipt, Coins, RefreshCw, AlertTriangle } from 'lucide-react';
+import { StorageService } from '../services/storageService';
 
 interface SettingsViewProps {
     settings: StoreSettings;
@@ -24,6 +25,13 @@ export const SettingsView: React.FC<SettingsViewProps> = ({ settings, onSaveSett
         onSaveSettings(formData);
         setSaved(true);
         setTimeout(() => setSaved(false), 3000);
+    };
+
+    const handleFactoryReset = async () => {
+        if (window.confirm("⚠️ ¿RESTAURAR DEMO?\n\nEsto borrará todas tus ventas y productos locales, y cargará la última plantilla oficial de la nube.\n\nEsta acción no se puede deshacer.")) {
+            await StorageService.resetDemoData();
+            window.location.reload();
+        }
     };
 
     return (
@@ -124,6 +132,23 @@ export const SettingsView: React.FC<SettingsViewProps> = ({ settings, onSaveSett
                                 </label>
                             </div>
                         </div>
+                    </div>
+
+                    {/* DANGER ZONE (Demo Reset) */}
+                    <div className="bg-red-50 p-8 rounded-[2.5rem] border border-red-100">
+                        <div className="flex items-center gap-3 mb-4">
+                            <div className="p-3 bg-red-100 rounded-2xl text-red-600"><AlertTriangle className="w-6 h-6"/></div>
+                            <h2 className="text-xl font-bold text-red-800">Zona de Peligro (Demo)</h2>
+                        </div>
+                        <p className="text-sm text-red-600/80 mb-6 font-medium">
+                            Si eres usuario Demo, esto borrará todos tus datos locales y descargará la plantilla más reciente de la nube. Úsalo si no ves los productos actualizados.
+                        </p>
+                        <button 
+                            onClick={handleFactoryReset}
+                            className="px-6 py-3 bg-white border border-red-200 text-red-600 rounded-xl font-bold hover:bg-red-600 hover:text-white transition-all flex items-center gap-2 shadow-sm"
+                        >
+                            <RefreshCw className="w-4 h-4"/> Restaurar Datos de Fábrica
+                        </button>
                     </div>
                 </div>
             </div>
