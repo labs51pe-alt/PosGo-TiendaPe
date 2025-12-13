@@ -306,18 +306,10 @@ const App: React.FC = () => {
           const result = await StorageService.saveDemoProductToTemplate(pToSave);
           if (result.success) {
               setSuperAdminRefreshTrigger(prev => prev + 1); // FORCE REFRESH
-              
-              if (result.error && result.error.includes("LOCALMENTE")) {
-                  // SILENT SUCCESS FOR LOCAL SAVE
-                  console.log("Producto guardado localmente (Offline Mode)");
-              } else if (result.error) {
-                  alert("⚠️ Guardado con advertencias: " + result.error);
-              } else {
-                  alert("✅ Producto guardado en Plantilla Global exitosamente.");
-              }
+              alert("✅ Producto guardado en Plantilla Global exitosamente.");
               setIsProductModalOpen(false);
           } else {
-              alert("❌ Error crítico al guardar: " + (result.error || "Desconocido"));
+              alert("❌ Error al guardar en plantilla: " + (result.error || "Desconocido"));
           }
           return;
       }

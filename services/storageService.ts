@@ -13,13 +13,12 @@ const KEYS = {
   SHIFTS: 'lumina_shifts',
   MOVEMENTS: 'lumina_movements',
   ACTIVE_SHIFT_ID: 'lumina_active_shift',
-  DEMO_TEMPLATE: 'lumina_demo_template' // New Key for caching template
+  DEMO_TEMPLATE: 'lumina_demo_template'
 };
 
-// ID ESPECIAL PARA LA PLANTILLA MAESTRA EN LA NUBE
+// ID RESERVADO PARA LA PLANTILLA MAESTRA EN LA NUBE
 const DEMO_TEMPLATE_ID = '00000000-0000-0000-0000-000000000000'; 
 
-// Helper to check if we are in DEMO mode or REAL mode
 const isDemo = () => {
     const session = localStorage.getItem(KEYS.SESSION);
     if (!session) return true;
@@ -27,7 +26,7 @@ const isDemo = () => {
     return user.id === 'test-user-demo'; 
 };
 
-// Cache for store_id to avoid repeated fetches
+// Cache for store_id
 let cachedStoreId: string | null = null;
 
 const getStoreId = async (): Promise<string | null> => {
@@ -37,7 +36,8 @@ const getStoreId = async (): Promise<string | null> => {
     const { data: { user } } = await supabase.auth.getUser();
     if (!user) return null;
 
-    const { data, error } = await supabase.from('profiles').select('store_id').eq('id', user.id).single();
+    // Check if user has a profile with store_id
+    const { data } = await supabase.from('profiles').select('store_id').eq('id', user.id).single();
     if (data) {
         cachedStoreId = data.store_id;
         return data.store_id;
@@ -61,7 +61,7 @@ export const StorageService = {
   // === SUPER ADMIN / LEADS ===
   saveLead: async (lead: Omit<Lead, 'id' | 'created_at'>) => {
       try {
-          const { data, error } = await supabase.from('leads').upsert({
+          const { error } = await supabase.from('leads').upsert({
               name: lead.name,
               business_name: lead.business_name,
               phone: lead.phone,
@@ -90,24 +90,25 @@ export const StorageService = {
       await supabase.from('stores').delete().eq('id', storeId);
   },
 
-  // === GESTIÓN DE PLANTILLA DEMO (CLOUD + LOCAL FALLBACK) ===
+  // === GESTIÓN DE PLANTILLA DEMO (CLOUD) ===
   
-  // 1. OBTENER PLANTILLA
+  // 1. Obtener Plantilla desde Supabase (o Cache Local si falla)
   getDemoTemplate: async (): Promise<Product[]> => {
-      // INTENTAR SIEMPRE DESDE LA NUBE PRIMERO
-      // (Para asegurar que los usuarios Demo reciban las últimas actualizaciones del Super Admin)
       try {
+          // Intentar obtener de la nube primero
           const { data: productsData, error: prodError } = await supabase
               .from('products')
               .select('*')
               .eq('store_id', DEMO_TEMPLATE_ID);
           
           if (!prodError && productsData && productsData.length > 0) {
+              // Obtener imágenes asociadas
               const { data: imagesData } = await supabase
                   .from('product_images')
                   .select('*')
                   .eq('store_id', DEMO_TEMPLATE_ID);
 
+              // Mapear datos de DB a Tipos de App
               const mapped = productsData.map((p: any) => {
                   const prodImages = imagesData 
                       ? imagesData
@@ -115,7 +116,14 @@ export const StorageService = {
                           .map((img: any) => img.image_data)
                       : [];
 
-                  const variants = p.variants || [];
+                  // Handle variants being possibly null or string or json
+                  let variants = [];
+                  if (typeof p.variants === 'string') {
+                      try { variants = JSON.parse(p.variants); } catch(e) {}
+                  } else if (Array.isArray(p.variants)) {
+                      variants = p.variants;
+                  }
+
                   return {
                       id: p.id,
                       name: p.name,
@@ -129,73 +137,36 @@ export const StorageService = {
                   };
               });
 
-              // Guardar en caché local para uso offline futuro
-              console.log("Template fetched from cloud successfully.");
+              // Actualizar caché local
               localStorage.setItem(KEYS.DEMO_TEMPLATE, JSON.stringify(mapped));
               return mapped;
           }
       } catch (e) {
-          console.warn("Error fetching cloud template, falling back to local cache.", e);
+          console.warn("Error fetching cloud template, falling back to local/mock.", e);
       }
 
-      // 2. Fallback a caché local si la nube falla (o estaba vacía)
+      // Si falla la nube o está vacía, usar caché o mocks
       const cached = localStorage.getItem(KEYS.DEMO_TEMPLATE);
-      if (cached) {
-          return JSON.parse(cached);
-      }
-
-      // 3. Fallback final
-      return MOCK_PRODUCTS;
+      return cached ? JSON.parse(cached) : MOCK_PRODUCTS;
   },
 
-  // 2. GUARDAR PLANTILLA (Solo Super Admin)
+  // 2. Guardar Producto en Plantilla (Solo Super Admin)
   saveDemoProductToTemplate: async (product: Product): Promise<{ success: boolean; error?: string }> => {
-      // 1. SIEMPRE GUARDAR EN LOCAL PRIMERO (Optimistic UI / Offline support)
       try {
-          const currentTemplate = await StorageService.getDemoTemplate(); // Lee de cache si no hay nube
-          
-          const index = currentTemplate.findIndex(p => p.id === product.id);
-          let newTemplate;
-          if (index >= 0) {
-              newTemplate = currentTemplate.map(p => p.id === product.id ? product : p);
-          } else {
-              newTemplate = [...currentTemplate, product];
-          }
-          localStorage.setItem(KEYS.DEMO_TEMPLATE, JSON.stringify(newTemplate));
-      } catch (e) {
-          console.error("Error updating local template cache", e);
-      }
-
-      // 2. INTENTAR GUARDAR EN NUBE (Permisivo)
-      try {
-          console.log("Attempting save demo product to cloud...", product.id);
-
-          // VALIDAR ID
-          const isValidUUID = (id: string) => /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(id);
-          let finalId = product.id;
-          if (!finalId || !isValidUUID(finalId)) {
-              finalId = crypto.randomUUID();
-          }
+          console.log("Saving demo product to cloud...", product.id);
 
           // A. Asegurar que existe la Tienda Demo (Foreign Key)
-          // Nota: Si el usuario no tiene permisos, esto podría fallar, pero lo intentamos.
-          const { data: storeExists } = await supabase
-              .from('stores')
-              .select('id')
-              .eq('id', DEMO_TEMPLATE_ID)
-              .maybeSingle();
+          const { error: storeError } = await supabase.from('stores').upsert({
+              id: DEMO_TEMPLATE_ID,
+              settings: DEFAULT_SETTINGS,
+              created_at: new Date().toISOString()
+          });
           
-          if (!storeExists) {
-              await supabase.from('stores').upsert({
-                  id: DEMO_TEMPLATE_ID,
-                  settings: DEFAULT_SETTINGS,
-                  created_at: new Date().toISOString()
-              });
-          }
+          if (storeError) console.error("Store check warning:", storeError.message);
 
           // B. Guardar/Actualizar Producto
           const payload: any = {
-              id: finalId,
+              id: product.id,
               name: product.name,
               price: product.price,
               stock: product.stock,
@@ -206,60 +177,55 @@ export const StorageService = {
           };
           
           const { error: prodError } = await supabase.from('products').upsert(payload);
-          
-          if (prodError) {
-              console.error("Cloud Save Failed (RLS or Network):", prodError.message);
-              // RETORNAMOS ÉXITO LOCAL PERO CON AVISO
-              return { success: true, error: "Guardado LOCALMENTE. (Nube: " + prodError.message + ")" };
-          }
-          
-          // C. Gestionar Imágenes
+          if (prodError) throw prodError;
+
+          // C. Gestionar Imágenes (Borrar anteriores e insertar nuevas)
           if (product.images) {
               await supabase.from('product_images').delete()
-                  .eq('product_id', finalId)
+                  .eq('product_id', product.id)
                   .eq('store_id', DEMO_TEMPLATE_ID);
               
               if (product.images.length > 0) {
                   const imageInserts = product.images.map(imgData => ({
-                      product_id: finalId,
+                      product_id: product.id,
                       image_data: imgData, 
                       store_id: DEMO_TEMPLATE_ID
                   }));
                   
-                  await supabase.from('product_images').insert(imageInserts);
+                  const { error: imgError } = await supabase.from('product_images').insert(imageInserts);
+                  if (imgError) throw imgError;
               }
           }
+
+          // D. Actualizar caché local para respuesta inmediata
+          const currentTemplate = await StorageService.getDemoTemplate();
+          // Force refresh local cache
+          localStorage.setItem(KEYS.DEMO_TEMPLATE, JSON.stringify(currentTemplate));
+
           return { success: true };
 
       } catch (err: any) {
-          console.error("Exception saving to cloud:", err);
-          return { success: true, error: "Guardado LOCALMENTE (Excepción: " + err.message + ")" };
+          console.error("Error saving to cloud template:", err);
+          return { success: false, error: err.message };
       }
   },
 
   deleteDemoProduct: async (productId: string) => {
-      // 1. Delete Local
-      const cached = localStorage.getItem(KEYS.DEMO_TEMPLATE);
-      if (cached) {
-          const list = JSON.parse(cached);
-          const updated = list.filter((p: Product) => p.id !== productId);
-          localStorage.setItem(KEYS.DEMO_TEMPLATE, JSON.stringify(updated));
-      }
-
-      // 2. Delete Cloud
-      try {
-        await supabase.from('product_images').delete().eq('product_id', productId).eq('store_id', DEMO_TEMPLATE_ID);
-        await supabase.from('products').delete().eq('id', productId).eq('store_id', DEMO_TEMPLATE_ID);
-      } catch (e) {
-          console.warn("Could not delete from cloud", e);
-      }
+      // 1. Delete form Cloud
+      await supabase.from('product_images').delete().eq('product_id', productId).eq('store_id', DEMO_TEMPLATE_ID);
+      await supabase.from('products').delete().eq('id', productId).eq('store_id', DEMO_TEMPLATE_ID);
+      
+      // 2. Update Local Cache
+      const list = JSON.parse(localStorage.getItem(KEYS.DEMO_TEMPLATE) || '[]');
+      const updated = list.filter((p: Product) => p.id !== productId);
+      localStorage.setItem(KEYS.DEMO_TEMPLATE, JSON.stringify(updated));
   },
 
   // === PRODUCTOS (MODO NORMAL) ===
   getProducts: async (): Promise<Product[]> => {
     if (isDemo()) {
         const s = localStorage.getItem(KEYS.PRODUCTS);
-        // Si no hay nada en local, intentar cargar la plantilla (fallback de seguridad)
+        // Si no hay nada en local, intentar cargar la plantilla (fallback)
         if (!s) {
             const template = await StorageService.getDemoTemplate();
             localStorage.setItem(KEYS.PRODUCTS, JSON.stringify(template));
@@ -267,6 +233,7 @@ export const StorageService = {
         }
         return JSON.parse(s);
     } else {
+        // MODO REAL: Cargar de Supabase usando el store_id del usuario
         const storeId = await getStoreId();
         if(!storeId) return []; 
 
@@ -280,7 +247,13 @@ export const StorageService = {
                 ? imagesData.filter((img: any) => img.product_id === p.id).map((img: any) => img.image_data)
                 : [];
 
-            const variants = p.variants || [];
+            let variants = [];
+            if (typeof p.variants === 'string') {
+                try { variants = JSON.parse(p.variants); } catch(e) {}
+            } else if (Array.isArray(p.variants)) {
+                variants = p.variants;
+            }
+
             return {
                 id: p.id,
                 name: p.name,
@@ -288,7 +261,7 @@ export const StorageService = {
                 category: p.category,
                 stock: Number(p.stock),
                 barcode: p.barcode,
-                hasVariants: variants.length > 0, 
+                hasVariants: variants.length > 0,
                 variants: variants,
                 images: prodImages 
             };
@@ -298,7 +271,7 @@ export const StorageService = {
   
   saveProductWithImages: async (product: Product) => {
       if (isDemo()) {
-          // En DEMO, solo guardamos en LocalStorage del navegador del usuario
+          // En DEMO, solo guardamos en LocalStorage
           const products = JSON.parse(localStorage.getItem(KEYS.PRODUCTS) || '[]');
           const index = products.findIndex((p: any) => p.id === product.id);
           let updatedProducts;
@@ -309,6 +282,7 @@ export const StorageService = {
           }
           localStorage.setItem(KEYS.PRODUCTS, JSON.stringify(updatedProducts));
       } else {
+          // EN REAL, guardar en Supabase
           const storeId = await getStoreId();
           if (!storeId) return;
 
@@ -322,7 +296,6 @@ export const StorageService = {
                 variants: product.variants || [],
                 store_id: storeId
           };
-          // removed 'has_variants' to avoid schema errors
           
           await supabase.from('products').upsert(payload);
 
@@ -358,7 +331,6 @@ export const StorageService = {
                 variants: p.variants || [],
                 store_id: storeId
             };
-            // removed 'has_variants'
             await supabase.from('products').upsert(payload);
         }
     }
@@ -377,13 +349,13 @@ export const StorageService = {
         return data.map((t: any) => ({
             id: t.id,
             date: t.date,
-            items: t.items,
+            items: typeof t.items === 'string' ? JSON.parse(t.items) : t.items,
             subtotal: Number(t.subtotal),
             tax: Number(t.tax),
             discount: Number(t.discount),
             total: Number(t.total),
             paymentMethod: t.payment_method,
-            payments: t.payments,
+            payments: typeof t.payments === 'string' ? JSON.parse(t.payments) : t.payments,
             profit: Number(t.profit),
             shiftId: t.shift_id
         }));
@@ -563,13 +535,13 @@ export const StorageService = {
   },
 
   resetDemoData: async () => {
-      // 1. DESCARGAR LA PLANTILLA MÁS RECIENTE DE LA NUBE (Con fallback a cache)
+      // 1. DESCARGAR LA PLANTILLA MÁS RECIENTE DE LA NUBE
       const template = await StorageService.getDemoTemplate();
       
       // 2. SOBREESCRIBIR LOCALSTORAGE CON LA PLANTILLA
       localStorage.setItem(KEYS.PRODUCTS, JSON.stringify(template));
       
-      // 3. LIMPIAR EL RESTO DE DATOS DE SESIONES ANTERIORES
+      // 3. LIMPIAR EL RESTO DE DATOS
       localStorage.setItem(KEYS.TRANSACTIONS, JSON.stringify([]));
       localStorage.setItem(KEYS.PURCHASES, JSON.stringify([]));
       localStorage.setItem(KEYS.SHIFTS, JSON.stringify([]));

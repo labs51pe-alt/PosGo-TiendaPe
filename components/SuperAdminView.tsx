@@ -23,7 +23,7 @@ export const SuperAdminView: React.FC<SuperAdminProps> = ({ onEditProduct, onNew
             const [l, s, demo] = await Promise.all([
                 StorageService.getLeads(),
                 StorageService.getAllStores(),
-                StorageService.getDemoTemplate() // Now async
+                StorageService.getDemoTemplate() // Fetches from cloud '0000...' ID
             ]);
             setLeads(l);
             setStores(s);
@@ -38,7 +38,7 @@ export const SuperAdminView: React.FC<SuperAdminProps> = ({ onEditProduct, onNew
 
     useEffect(() => {
         fetchData();
-    }, [lastUpdated]);
+    }, [lastUpdated]); // Refresh when parent signals update
 
     const handleDeleteStore = async (id: string) => {
         if (window.confirm('¿ESTÁS SEGURO? Esto eliminará la tienda y todos sus datos.')) {
@@ -55,20 +55,9 @@ export const SuperAdminView: React.FC<SuperAdminProps> = ({ onEditProduct, onNew
     };
 
     const handleDeleteDemoProduct = async (id: string) => {
-        if (window.confirm('¿Eliminar producto de la plantilla demo?')) {
-            // Delete from UI
-            const updated = demoProducts.filter(p => p.id !== id);
-            setDemoProducts(updated);
-            // Delete from Backend
+        if (window.confirm('¿Eliminar producto de la plantilla demo en la nube?')) {
             await StorageService.deleteDemoProduct(id);
-        }
-    };
-
-    const handleRestoreDemo = async () => {
-        if(window.confirm('Esta acción no se puede deshacer. ¿Seguro?')) {
-            // Logic to restore requires clearing DB logic or just manual re-entry.
-            // For now, let's just refresh.
-            fetchData();
+            fetchData(); // Reload from cloud to confirm delete
         }
     };
 
