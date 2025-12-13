@@ -128,7 +128,7 @@ export const StorageService = {
                   category: p.category,
                   stock: Number(p.stock),
                   barcode: p.barcode,
-                  hasVariants: variants.length > 0, // Derive from data presence
+                  hasVariants: variants.length > 0, 
                   variants: variants,
                   images: prodImages 
               };
@@ -143,6 +143,11 @@ export const StorageService = {
   saveDemoProductToTemplate: async (product: Product): Promise<{ success: boolean; error?: string }> => {
       try {
           console.log("Saving demo product...", product.id);
+
+          const { data: { user } } = await supabase.auth.getUser();
+          if (!user) {
+              return { success: false, error: "No autenticado en Supabase. El modo Super Admin local no permite guardar en la nube (RLS)." };
+          }
 
           // VALIDAR ID (Fix for invalid input syntax for type uuid)
           const isValidUUID = (id: string) => /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(id);
@@ -171,8 +176,6 @@ export const StorageService = {
           }
 
           // B. Guardar/Actualizar Producto
-          // NOTE: removed 'has_variants' as it causes schema error if column is missing. 
-          // We rely on 'variants' not being empty.
           const payload: any = {
               id: finalId,
               name: product.name,
@@ -187,6 +190,9 @@ export const StorageService = {
           const { error: prodError } = await supabase.from('products').upsert(payload);
           if (prodError) {
               console.error("Error inserting product:", prodError);
+              if (prodError.message.includes("row-level security")) {
+                  throw new Error("Permiso denegado por RLS. Asegúrate de estar logueado con la cuenta propietaria del Template.");
+              }
               throw new Error(`Error en Productos: ${prodError.message}`);
           }
           
@@ -261,7 +267,7 @@ export const StorageService = {
                 category: p.category,
                 stock: Number(p.stock),
                 barcode: p.barcode,
-                hasVariants: variants.length > 0, // Derive from data
+                hasVariants: variants.length > 0, 
                 variants: variants,
                 images: prodImages 
             };

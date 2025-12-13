@@ -3,7 +3,7 @@ import { UserProfile } from '../types';
 import { 
   Rocket, ArrowRight, MessageSquare, CheckCircle, RefreshCw, 
   Sparkles, ShieldAlert, Lock, ChevronDown, AlertCircle, PlayCircle,
-  ShoppingBag, Package, BarChart3, Zap, User, Building2, Star
+  ShoppingBag, Package, BarChart3, Zap, User, Building2, Star, Mail
 } from 'lucide-react';
 import { supabase } from '../services/supabase';
 import { StorageService } from '../services/storageService';
@@ -32,6 +32,7 @@ export const Auth: React.FC<AuthProps> = ({ onLogin }) => {
   // God Mode
   const [logoClicks, setLogoClicks] = useState(0);
   const [showGodMode, setShowGodMode] = useState(false);
+  const [adminEmail, setAdminEmail] = useState('');
   const [masterPassword, setMasterPassword] = useState('');
   const [godError, setGodError] = useState('');
 
@@ -257,12 +258,39 @@ export const Auth: React.FC<AuthProps> = ({ onLogin }) => {
       setDemoBusiness('');
   };
 
-  const handleGodModeLogin = (e: React.FormEvent) => {
+  const handleGodModeLogin = async (e: React.FormEvent) => {
     e.preventDefault();
+    setGodError('');
+
+    // 1. Try Real Supabase Auth (Priority)
+    if (adminEmail && masterPassword) {
+        try {
+            const { data, error } = await supabase.auth.signInWithPassword({
+                email: adminEmail,
+                password: masterPassword
+            });
+
+            if (error) throw error;
+            if (data.user) {
+                onLogin({ 
+                    id: 'god-mode', // Maintain ID for View routing
+                    name: 'Super Admin', 
+                    role: 'super_admin',
+                    email: data.user.email 
+                });
+                return;
+            }
+        } catch (err: any) {
+            console.error("Supabase Admin Login Failed:", err.message);
+            // Fallthrough to local check
+        }
+    }
+
+    // 2. Local Bypass Fallback
     if (masterPassword === 'Luis2021') {
        onLogin({ id: 'god-mode', name: 'Super Admin', role: 'super_admin' });
     } else {
-       setGodError('Acceso Denegado');
+       setGodError('Credenciales inválidas');
        setMasterPassword('');
     }
   };
@@ -552,6 +580,19 @@ export const Auth: React.FC<AuthProps> = ({ onLogin }) => {
                      <p className="text-slate-400 text-xs mb-6 font-bold uppercase tracking-wide">Acceso Restringido</p>
                      
                      <form onSubmit={handleGodModeLogin} className="space-y-4">
+                        
+                        {/* Added Email Field for Real Auth */}
+                        <div className="relative group">
+                            <Mail className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-400 w-5 h-5 group-focus-within:text-red-500 transition-colors"/>
+                            <input 
+                                type="email" 
+                                value={adminEmail}
+                                onChange={e => setAdminEmail(e.target.value)}
+                                className="w-full pl-12 pr-4 py-4 bg-slate-50 border border-slate-200 rounded-2xl text-slate-900 font-bold outline-none focus:border-red-500 focus:bg-white transition-all placeholder:text-slate-300"
+                                placeholder="admin@posgo.com"
+                            />
+                        </div>
+
                         <div className="relative group">
                             <Lock className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-400 w-5 h-5 group-focus-within:text-red-500 transition-colors"/>
                             <input 
@@ -560,7 +601,6 @@ export const Auth: React.FC<AuthProps> = ({ onLogin }) => {
                                 onChange={e => setMasterPassword(e.target.value)}
                                 className="w-full pl-12 pr-4 py-4 bg-slate-50 border border-slate-200 rounded-2xl text-slate-900 font-bold outline-none focus:border-red-500 focus:bg-white transition-all placeholder:text-slate-300"
                                 placeholder="******"
-                                autoFocus
                             />
                         </div>
                         {godError && <p className="text-red-600 text-xs font-bold">{godError}</p>}
