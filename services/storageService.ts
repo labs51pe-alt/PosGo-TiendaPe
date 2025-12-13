@@ -174,15 +174,9 @@ export const StorageService = {
           console.error("Error updating local template cache", e);
       }
 
-      // 2. INTENTAR GUARDAR EN NUBE (Si hay auth)
+      // 2. INTENTAR GUARDAR EN NUBE (Permisivo)
       try {
-          console.log("Saving demo product to cloud...", product.id);
-
-          const { data: { user } } = await supabase.auth.getUser();
-          if (!user) {
-              console.warn("No autenticado en Supabase. Guardado solo en LocalStorage.");
-              return { success: true, error: "Guardado LOCALMENTE (Sin conexión a Nube)" };
-          }
+          console.log("Attempting save demo product to cloud...", product.id);
 
           // VALIDAR ID
           const isValidUUID = (id: string) => /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(id);
@@ -192,6 +186,7 @@ export const StorageService = {
           }
 
           // A. Asegurar que existe la Tienda Demo (Foreign Key)
+          // Nota: Si el usuario no tiene permisos, esto podría fallar, pero lo intentamos.
           const { data: storeExists } = await supabase
               .from('stores')
               .select('id')
@@ -219,10 +214,11 @@ export const StorageService = {
           };
           
           const { error: prodError } = await supabase.from('products').upsert(payload);
+          
           if (prodError) {
-              // Si falla por RLS u otro motivo, ya guardamos en local, así que no bloqueamos.
-              console.error("Error inserting product to cloud:", prodError);
-              return { success: true, error: "Guardado LOCALMENTE (Error Nube: " + prodError.message + ")" };
+              console.error("Cloud Save Failed (RLS or Network):", prodError.message);
+              // RETORNAMOS ÉXITO LOCAL PERO CON AVISO
+              return { success: true, error: "Guardado LOCALMENTE. (Nube: " + prodError.message + ")" };
           }
           
           // C. Gestionar Imágenes
@@ -244,8 +240,7 @@ export const StorageService = {
           return { success: true };
 
       } catch (err: any) {
-          console.error("Error saving to cloud:", err);
-          // Fallback exitoso (Local)
+          console.error("Exception saving to cloud:", err);
           return { success: true, error: "Guardado LOCALMENTE (Excepción: " + err.message + ")" };
       }
   },

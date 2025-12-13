@@ -308,7 +308,8 @@ const App: React.FC = () => {
               setSuperAdminRefreshTrigger(prev => prev + 1); // FORCE REFRESH
               
               if (result.error && result.error.includes("LOCALMENTE")) {
-                  alert("✅ Producto guardado en Memoria Local.\n(No tienes permisos de escritura en la nube, pero tus cambios se han guardado en este dispositivo).");
+                  // SILENT SUCCESS FOR LOCAL SAVE
+                  console.log("Producto guardado localmente (Offline Mode)");
               } else if (result.error) {
                   alert("⚠️ Guardado con advertencias: " + result.error);
               } else {

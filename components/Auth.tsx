@@ -3,7 +3,7 @@ import { UserProfile } from '../types';
 import { 
   Rocket, ArrowRight, MessageSquare, CheckCircle, RefreshCw, 
   Sparkles, ShieldAlert, Lock, ChevronDown, AlertCircle, PlayCircle,
-  ShoppingBag, Package, BarChart3, Zap, User, Building2, Star, Mail
+  ShoppingBag, Package, BarChart3, Zap, User, Building2, Star, Mail, Cloud, HardDrive
 } from 'lucide-react';
 import { supabase } from '../services/supabase';
 import { StorageService } from '../services/storageService';
@@ -35,6 +35,7 @@ export const Auth: React.FC<AuthProps> = ({ onLogin }) => {
   const [adminEmail, setAdminEmail] = useState('');
   const [masterPassword, setMasterPassword] = useState('');
   const [godError, setGodError] = useState('');
+  const [godModeType, setGodModeType] = useState<'LOCAL' | 'CLOUD'>('LOCAL');
 
   const currentCountry = COUNTRIES.find(c => c.code === countryCode) || COUNTRIES[0];
 
@@ -261,37 +262,73 @@ export const Auth: React.FC<AuthProps> = ({ onLogin }) => {
   const handleGodModeLogin = async (e: React.FormEvent) => {
     e.preventDefault();
     setGodError('');
+    setLoading(true);
 
-    // 1. Try Real Supabase Auth (Priority)
-    if (adminEmail && masterPassword) {
-        try {
+    try {
+        if (godModeType === 'CLOUD') {
+            // 1. CLOUD LOGIN (Real Supabase Auth)
+            if (!adminEmail || !masterPassword) {
+                throw new Error("Ingresa email y contraseña");
+            }
+
             const { data, error } = await supabase.auth.signInWithPassword({
                 email: adminEmail,
                 password: masterPassword
             });
 
             if (error) throw error;
+
             if (data.user) {
+                // Success: Cloud session active
                 onLogin({ 
-                    id: 'god-mode', // Maintain ID for View routing
-                    name: 'Super Admin', 
+                    id: 'god-mode', // Using special ID to trigger Super Admin View
+                    name: 'Super Admin (Cloud)', 
                     role: 'super_admin',
                     email: data.user.email 
                 });
-                return;
             }
-        } catch (err: any) {
-            console.error("Supabase Admin Login Failed:", err.message);
-            // Fallthrough to local check
-        }
-    }
+        } else {
+            // 2. LOCAL LOGIN (With Auto-Cloud Upgrade)
+            if (masterPassword === 'Luis2021') {
+                
+                // ATTEMPT BACKGROUND CLOUD AUTH (Optional Power-Up)
+                // If the "Local" password matches a predefined "Cloud Admin" account, sign them in for real.
+                try {
+                    const { data, error } = await supabase.auth.signInWithPassword({
+                        email: 'admin@posgo.com', // Default admin handle
+                        password: masterPassword  // 'Luis2021'
+                    });
+                    
+                    if (!error && data.user) {
+                        console.log("Local mode upgraded to Cloud Session successfully.");
+                        onLogin({ 
+                            id: 'god-mode', 
+                            name: 'Super Admin (Cloud Active)', 
+                            role: 'super_admin',
+                            email: data.user.email 
+                        });
+                        return;
+                    }
+                } catch (e) {
+                    console.warn("Background cloud auth failed, falling back to local only mode.");
+                }
 
-    // 2. Local Bypass Fallback
-    if (masterPassword === 'Luis2021') {
-       onLogin({ id: 'god-mode', name: 'Super Admin', role: 'super_admin' });
-    } else {
-       setGodError('Credenciales inválidas');
-       setMasterPassword('');
+                // If background auth fails, ensure we are logged out (Local Only Mode)
+                await supabase.auth.signOut();
+                
+                onLogin({ 
+                    id: 'god-mode', 
+                    name: 'Super Admin (Local)', 
+                    role: 'super_admin' 
+                });
+            } else {
+                throw new Error("Contraseña local incorrecta");
+            }
+        }
+    } catch (err: any) {
+        setGodError(err.message || "Error de autenticación");
+    } finally {
+        setLoading(false);
     }
   };
 
@@ -577,21 +614,39 @@ export const Auth: React.FC<AuthProps> = ({ onLogin }) => {
                          <ShieldAlert className="w-8 h-8 text-red-600"/>
                      </div>
                      <h2 className="text-2xl font-black text-slate-900 mb-2">Super Admin</h2>
-                     <p className="text-slate-400 text-xs mb-6 font-bold uppercase tracking-wide">Acceso Restringido</p>
+                     <p className="text-slate-400 text-xs mb-6 font-bold uppercase tracking-wide">Panel de Control Maestro</p>
                      
+                     {/* Toggle Mode */}
+                     <div className="flex bg-slate-100 p-1 rounded-xl mb-6">
+                         <button 
+                            onClick={() => { setGodModeType('LOCAL'); setGodError(''); }} 
+                            className={`flex-1 py-2 rounded-lg text-xs font-bold transition-all flex items-center justify-center gap-2 ${godModeType === 'LOCAL' ? 'bg-white text-slate-800 shadow-sm' : 'text-slate-400 hover:text-slate-600'}`}
+                         >
+                             <HardDrive className="w-3 h-3"/> Local (Offline)
+                         </button>
+                         <button 
+                            onClick={() => { setGodModeType('CLOUD'); setGodError(''); }} 
+                            className={`flex-1 py-2 rounded-lg text-xs font-bold transition-all flex items-center justify-center gap-2 ${godModeType === 'CLOUD' ? 'bg-red-50 text-red-600 shadow-sm border border-red-100' : 'text-slate-400 hover:text-slate-600'}`}
+                         >
+                             <Cloud className="w-3 h-3"/> Cloud (Sync)
+                         </button>
+                     </div>
+
                      <form onSubmit={handleGodModeLogin} className="space-y-4">
                         
-                        {/* Added Email Field for Real Auth */}
-                        <div className="relative group">
-                            <Mail className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-400 w-5 h-5 group-focus-within:text-red-500 transition-colors"/>
-                            <input 
-                                type="email" 
-                                value={adminEmail}
-                                onChange={e => setAdminEmail(e.target.value)}
-                                className="w-full pl-12 pr-4 py-4 bg-slate-50 border border-slate-200 rounded-2xl text-slate-900 font-bold outline-none focus:border-red-500 focus:bg-white transition-all placeholder:text-slate-300"
-                                placeholder="admin@posgo.com"
-                            />
-                        </div>
+                        {godModeType === 'CLOUD' && (
+                            <div className="relative group animate-fade-in">
+                                <Mail className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-400 w-5 h-5 group-focus-within:text-red-500 transition-colors"/>
+                                <input 
+                                    type="email" 
+                                    value={adminEmail}
+                                    onChange={e => setAdminEmail(e.target.value)}
+                                    className="w-full pl-12 pr-4 py-4 bg-slate-50 border border-slate-200 rounded-2xl text-slate-900 font-bold outline-none focus:border-red-500 focus:bg-white transition-all placeholder:text-slate-300"
+                                    placeholder="admin@posgo.com"
+                                    required
+                                />
+                            </div>
+                        )}
 
                         <div className="relative group">
                             <Lock className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-400 w-5 h-5 group-focus-within:text-red-500 transition-colors"/>
@@ -600,14 +655,21 @@ export const Auth: React.FC<AuthProps> = ({ onLogin }) => {
                                 value={masterPassword}
                                 onChange={e => setMasterPassword(e.target.value)}
                                 className="w-full pl-12 pr-4 py-4 bg-slate-50 border border-slate-200 rounded-2xl text-slate-900 font-bold outline-none focus:border-red-500 focus:bg-white transition-all placeholder:text-slate-300"
-                                placeholder="******"
+                                placeholder={godModeType === 'CLOUD' ? "Contraseña" : "Código Local (Luis2021)"}
+                                required
                             />
                         </div>
-                        {godError && <p className="text-red-600 text-xs font-bold">{godError}</p>}
+                        {godError && <p className="text-red-600 text-xs font-bold animate-fade-in">{godError}</p>}
                         
                         <div className="flex gap-3 mt-6">
                             <button type="button" onClick={() => setShowGodMode(false)} className="flex-1 py-3 text-slate-500 font-bold hover:bg-slate-50 rounded-xl transition-colors text-sm">Cancelar</button>
-                            <button type="submit" className="flex-1 py-3 bg-red-600 text-white font-bold rounded-xl hover:bg-red-700 transition-all text-sm shadow-lg shadow-red-200">Entrar</button>
+                            <button 
+                                type="submit" 
+                                disabled={loading}
+                                className={`flex-1 py-3 font-bold rounded-xl text-white transition-all text-sm shadow-lg flex items-center justify-center gap-2 ${godModeType === 'CLOUD' ? 'bg-red-600 hover:bg-red-700 shadow-red-200' : 'bg-slate-800 hover:bg-black shadow-slate-300'}`}
+                            >
+                                {loading ? <RefreshCw className="w-4 h-4 animate-spin"/> : 'Acceder'}
+                            </button>
                         </div>
                      </form>
                  </div>
