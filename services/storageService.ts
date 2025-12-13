@@ -168,7 +168,6 @@ export const StorageService = {
 
           // 2. UPSERT STORE (If needed)
           // Intenta crear la tienda '0000...' si no existe.
-          // Si falla por RLS, no podremos insertar productos con ese store_id.
           const { error: storeUpsertError } = await supabase.from('stores').upsert({
               id: DEMO_TEMPLATE_ID,
               settings: DEFAULT_SETTINGS,
@@ -178,9 +177,10 @@ export const StorageService = {
           if (storeUpsertError) {
              if (storeUpsertError.message.includes('row-level security')) {
                  console.error("Store Upsert RLS Blocked:", storeUpsertError);
-                 return { success: true, error: "⚠️ Error RLS: No se pudo crear/acceder a la Tienda Plantilla. Ejecuta el SQL de 'Permisos'." };
+                 // No retornamos error aquí, intentamos seguir. Si falla el producto por FK, ahí avisamos.
+             } else {
+                 console.warn("Store upsert warning:", storeUpsertError.message);
              }
-             console.warn("Store upsert warning:", storeUpsertError.message);
           }
 
           // 3. SAVE PRODUCT
@@ -195,7 +195,8 @@ export const StorageService = {
               store_id: DEMO_TEMPLATE_ID
           };
           
-          const { error: prodError } = await supabase.from('products').upsert(payload);
+          // CRITICAL: Usamos .select() para confirmar que realmente se escribió
+          const { data: savedData, error: prodError } = await supabase.from('products').upsert(payload).select();
           
           if (prodError) {
               if (prodError.message.includes('row-level security')) {
@@ -205,6 +206,11 @@ export const StorageService = {
                   return { success: true, error: "⚠️ Error Crítico: La 'Tienda Plantilla' (ID 0000...) no existe en la base de datos y no se pudo crear. Asegúrate de ejecutar el bloque SQL completo." };
               }
               throw prodError;
+          }
+
+          // EXTRA CHECK: Si no hay error pero tampoco datos devueltos, RLS bloqueó silenciosamente
+          if (!savedData || savedData.length === 0) {
+              return { success: true, error: "⚠️ Guardado Fallido: Supabase no devolvió datos (Bloqueo Silencioso RLS). Ejecuta el SQL de 'Configurar Permisos'." };
           }
 
           // 4. SAVE IMAGES

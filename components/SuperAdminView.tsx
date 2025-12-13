@@ -73,20 +73,28 @@ export const SuperAdminView: React.FC<SuperAdminProps> = ({ onEditProduct, onNew
     };
 
     const SQL_CODE = `
--- 1. Permitir acceso a la Plantilla Global en PRODUCTOS
-CREATE POLICY "Public Template Access" ON "public"."products"
+-- 1. Crear la Tienda Plantilla (Si no existe)
+INSERT INTO "public"."stores" ("id", "created_at", "settings")
+VALUES ('00000000-0000-0000-0000-000000000000', NOW(), '{"name": "Plantilla Global"}')
+ON CONFLICT ("id") DO NOTHING;
+
+-- 2. Habilitar RLS en Stores (si no está habilitado)
+ALTER TABLE "public"."stores" ENABLE ROW LEVEL SECURITY;
+
+-- 3. Permitir ver/editar la Tienda Plantilla
+CREATE POLICY "Public Template Store Access" ON "public"."stores"
+FOR ALL USING (id = '00000000-0000-0000-0000-000000000000')
+WITH CHECK (id = '00000000-0000-0000-0000-000000000000');
+
+-- 4. Permitir productos de la plantilla
+CREATE POLICY "Public Template Products" ON "public"."products"
 FOR ALL USING (store_id = '00000000-0000-0000-0000-000000000000')
 WITH CHECK (store_id = '00000000-0000-0000-0000-000000000000');
 
--- 2. Permitir acceso a las IMAGENES de la plantilla
+-- 5. Permitir imágenes de la plantilla
 CREATE POLICY "Public Template Images" ON "public"."product_images"
 FOR ALL USING (store_id = '00000000-0000-0000-0000-000000000000')
 WITH CHECK (store_id = '00000000-0000-0000-0000-000000000000');
-
--- 3. Permitir crear el Store de la Plantilla
-CREATE POLICY "Public Template Store" ON "public"."stores"
-FOR ALL USING (id = '00000000-0000-0000-0000-000000000000')
-WITH CHECK (id = '00000000-0000-0000-0000-000000000000');
 `;
 
     return (
