@@ -167,6 +167,8 @@ export const StorageService = {
           }
 
           // 2. UPSERT STORE (If needed)
+          // Intenta crear la tienda '0000...' si no existe.
+          // Si falla por RLS, no podremos insertar productos con ese store_id.
           const { error: storeUpsertError } = await supabase.from('stores').upsert({
               id: DEMO_TEMPLATE_ID,
               settings: DEFAULT_SETTINGS,
@@ -174,6 +176,10 @@ export const StorageService = {
           });
           
           if (storeUpsertError) {
+             if (storeUpsertError.message.includes('row-level security')) {
+                 console.error("Store Upsert RLS Blocked:", storeUpsertError);
+                 return { success: true, error: "⚠️ Error RLS: No se pudo crear/acceder a la Tienda Plantilla. Ejecuta el SQL de 'Permisos'." };
+             }
              console.warn("Store upsert warning:", storeUpsertError.message);
           }
 
@@ -193,9 +199,10 @@ export const StorageService = {
           
           if (prodError) {
               if (prodError.message.includes('row-level security')) {
-                  console.error("%c[SQL FIX REQUIRED] Para que esto funcione, ejecuta esto en Supabase SQL Editor:", "color: red; font-size: 12px");
-                  console.log(`CREATE POLICY "Public Template Access" ON "public"."products" FOR ALL USING (store_id = '${DEMO_TEMPLATE_ID}') WITH CHECK (store_id = '${DEMO_TEMPLATE_ID}');`);
-                  return { success: true, error: "⚠️ Error de Permisos (RLS). Usa el botón 'Configurar Permisos' para obtener el código SQL." };
+                  return { success: true, error: "⚠️ Error Permisos (RLS) en Productos. Usa el botón 'Configurar Permisos'." };
+              }
+              if (prodError.message.includes('foreign key constraint')) {
+                  return { success: true, error: "⚠️ Error Crítico: La 'Tienda Plantilla' (ID 0000...) no existe en la base de datos y no se pudo crear. Asegúrate de ejecutar el bloque SQL completo." };
               }
               throw prodError;
           }
