@@ -161,11 +161,15 @@ export const StorageService = {
           console.log("Saving demo product to cloud...", product.id);
 
           // Attempt to ensure store exists (might fail RLS, ignore)
-          await supabase.from('stores').upsert({
+          const { error: storeUpsertError } = await supabase.from('stores').upsert({
               id: DEMO_TEMPLATE_ID,
               settings: DEFAULT_SETTINGS,
               created_at: new Date().toISOString()
-          }).catch(err => console.warn("Store upsert warning (expected if RLS blocks):", err.message));
+          });
+          
+          if (storeUpsertError) {
+             console.warn("Store upsert warning (expected if RLS blocks):", storeUpsertError.message);
+          }
 
           // Save Product
           const payload: any = {
@@ -207,7 +211,7 @@ export const StorageService = {
 
       } catch (err: any) {
           console.error("Error saving to cloud template:", err);
-          return { success: true, error: "Guardado LOCALMENTE (Error Nube: " + err.message + ")" };
+          return { success: true, error: "Guardado LOCALMENTE (Error Nube: " + (err.message || 'Unknown') + ")" };
       }
   },
 
