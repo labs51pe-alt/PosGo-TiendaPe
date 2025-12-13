@@ -107,7 +107,7 @@ const App: React.FC = () => {
     setLoading(true);
 
     if (loggedInUser.id === 'test-user-demo') {
-        // AWAIT IS CRITICAL HERE: Ensures we get the cloud template before rendering
+        // AWAIT IS CRITICAL HERE
         await StorageService.resetDemoData();
         setTimeout(() => setShowOnboarding(true), 500); 
     }
@@ -289,7 +289,6 @@ const App: React.FC = () => {
       let pToSave = { ...currentProduct };
       if (pToSave.hasVariants && pToSave.variants) pToSave.stock = pToSave.variants.reduce((acc, v) => acc + (Number(v.stock) || 0), 0);
       
-      // FIX: Ensure valid UUID for Database
       const isValidUUID = (id: string) => /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(id);
       
       // Check if current ID is a mock ID (e.g. "1", "15") or empty
@@ -306,10 +305,15 @@ const App: React.FC = () => {
           const result = await StorageService.saveDemoProductToTemplate(pToSave);
           if (result.success) {
               setSuperAdminRefreshTrigger(prev => prev + 1); // FORCE REFRESH
-              alert("✅ Producto guardado en Plantilla Global exitosamente.");
+              
+              if (result.error && result.error.includes("LOCALMENTE")) {
+                  alert("⚠️ " + result.error);
+              } else {
+                  alert("✅ Producto guardado en Plantilla Global exitosamente.");
+              }
               setIsProductModalOpen(false);
           } else {
-              alert("❌ Error al guardar en plantilla: " + (result.error || "Desconocido"));
+              alert("❌ Error: " + (result.error || "Desconocido"));
           }
           return;
       }
@@ -317,11 +321,9 @@ const App: React.FC = () => {
       // === NORMAL STORE MODE ===
       let updated; 
       
-      // If the ID changed (it was a mock ID "1"), we treat it as a replacement of the old one in the local list
       if (originalId && originalId !== pToSave.id) {
            updated = products.map(p => p.id === originalId ? pToSave : p);
       } else {
-           // Standard update or create
            if (products.find(p => p.id === pToSave.id)) {
                updated = products.map(p => p.id === pToSave.id ? pToSave : p); 
            } else {
@@ -330,7 +332,6 @@ const App: React.FC = () => {
       }
 
       setProducts(updated); 
-      // Use specific method to handle images
       await StorageService.saveProductWithImages(pToSave);
       setIsProductModalOpen(false);
   };
