@@ -7,9 +7,10 @@ import { CATEGORIES } from '../constants';
 interface SuperAdminProps {
     onEditProduct?: (product: Product) => void;
     onNewProduct?: () => void;
+    lastUpdated?: number;
 }
 
-export const SuperAdminView: React.FC<SuperAdminProps> = ({ onEditProduct, onNewProduct }) => {
+export const SuperAdminView: React.FC<SuperAdminProps> = ({ onEditProduct, onNewProduct, lastUpdated }) => {
     const [activeTab, setActiveTab] = useState<'LEADS' | 'STORES' | 'DEMO_PRODUCTS'>('DEMO_PRODUCTS'); 
     const [leads, setLeads] = useState<Lead[]>([]);
     const [stores, setStores] = useState<Store[]>([]);
@@ -37,7 +38,7 @@ export const SuperAdminView: React.FC<SuperAdminProps> = ({ onEditProduct, onNew
 
     useEffect(() => {
         fetchData();
-    }, []);
+    }, [lastUpdated]);
 
     const handleDeleteStore = async (id: string) => {
         if (window.confirm('¿ESTÁS SEGURO? Esto eliminará la tienda y todos sus datos.')) {

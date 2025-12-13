@@ -94,22 +94,29 @@ export const StorageService = {
   
   // 1. OBTENER PLANTILLA
   getDemoTemplate: async (): Promise<Product[]> => {
-      // Intentar obtener de la nube primero
+      // 0. Check Auth. If no cloud access (Local God Mode), try local cache first to preserve offline edits.
+      const { data: { user } } = await supabase.auth.getUser();
+      const hasCloudAccess = !!user;
+
+      if (!hasCloudAccess) {
+          const cached = localStorage.getItem(KEYS.DEMO_TEMPLATE);
+          if (cached) return JSON.parse(cached);
+          // If no local cache, falls through to mock/cloud try (which will likely fail or return stale public data)
+      }
+
+      // 1. Intentar obtener de la nube
       try {
-          // A. Obtener Productos
           const { data: productsData, error: prodError } = await supabase
               .from('products')
               .select('*')
               .eq('store_id', DEMO_TEMPLATE_ID);
           
           if (!prodError && productsData && productsData.length > 0) {
-              // B. Obtener Imágenes
               const { data: imagesData } = await supabase
                   .from('product_images')
                   .select('*')
                   .eq('store_id', DEMO_TEMPLATE_ID);
 
-              // C. Combinar datos
               const mapped = productsData.map((p: any) => {
                   const prodImages = imagesData 
                       ? imagesData
@@ -131,7 +138,7 @@ export const StorageService = {
                   };
               });
 
-              // Guardar en caché local para uso offline
+              // Guardar en caché local para uso offline futuro
               localStorage.setItem(KEYS.DEMO_TEMPLATE, JSON.stringify(mapped));
               return mapped;
           }
@@ -139,13 +146,13 @@ export const StorageService = {
           console.warn("Error fetching cloud template, falling back to local.", e);
       }
 
-      // Si falla la nube, usar caché local
+      // 2. Fallback a caché local si la nube falla (o estaba vacía)
       const cached = localStorage.getItem(KEYS.DEMO_TEMPLATE);
       if (cached) {
           return JSON.parse(cached);
       }
 
-      // Si no hay caché, usar MOCK
+      // 3. Fallback final
       return MOCK_PRODUCTS;
   },
 
@@ -153,8 +160,8 @@ export const StorageService = {
   saveDemoProductToTemplate: async (product: Product): Promise<{ success: boolean; error?: string }> => {
       // 1. SIEMPRE GUARDAR EN LOCAL PRIMERO (Optimistic UI / Offline support)
       try {
-          const currentTemplate = await StorageService.getDemoTemplate(); // Esto ahora lee de nube o caché
-          // Update local array
+          const currentTemplate = await StorageService.getDemoTemplate(); // Lee de cache si no hay nube
+          
           const index = currentTemplate.findIndex(p => p.id === product.id);
           let newTemplate;
           if (index >= 0) {
@@ -174,8 +181,6 @@ export const StorageService = {
           const { data: { user } } = await supabase.auth.getUser();
           if (!user) {
               console.warn("No autenticado en Supabase. Guardado solo en LocalStorage.");
-              // Retornamos éxito porque se guardó localmente, pero con una advertencia en el mensaje error (opcional)
-              // Para que el usuario no vea "Error Crítico", retornamos success: true
               return { success: true, error: "Guardado LOCALMENTE (Sin conexión a Nube)" };
           }
 

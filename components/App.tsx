@@ -34,6 +34,7 @@ const App: React.FC = () => {
   const [shifts, setShifts] = useState<CashShift[]>([]);
   const [movements, setMovements] = useState<CashMovement[]>([]);
   const [activeShiftId, setActiveShiftId] = useState<string | null>(null);
+  const [superAdminRefreshTrigger, setSuperAdminRefreshTrigger] = useState(0);
 
   // UI State
   const [isProductModalOpen, setIsProductModalOpen] = useState(false);
@@ -304,14 +305,18 @@ const App: React.FC = () => {
       if (view === ViewState.SUPER_ADMIN) {
           const result = await StorageService.saveDemoProductToTemplate(pToSave);
           if (result.success) {
-              if (result.error) {
-                  alert("Producto guardado, pero hubo un problema con las imágenes: " + result.error);
+              setSuperAdminRefreshTrigger(prev => prev + 1); // FORCE REFRESH
+              
+              if (result.error && result.error.includes("LOCALMENTE")) {
+                  alert("✅ Producto guardado en Memoria Local.\n(No tienes permisos de escritura en la nube, pero tus cambios se han guardado en este dispositivo).");
+              } else if (result.error) {
+                  alert("⚠️ Guardado con advertencias: " + result.error);
               } else {
-                  alert("Producto guardado en Plantilla Global exitosamente.");
+                  alert("✅ Producto guardado en Plantilla Global exitosamente.");
               }
               setIsProductModalOpen(false);
           } else {
-              alert("Error crítico al guardar: " + (result.error || "Desconocido"));
+              alert("❌ Error crítico al guardar: " + (result.error || "Desconocido"));
           }
           return;
       }
@@ -497,6 +502,7 @@ const App: React.FC = () => {
                         setCurrentProduct(p);
                         setIsProductModalOpen(true);
                     }}
+                    lastUpdated={superAdminRefreshTrigger}
                 />
             )}
         </Layout>
