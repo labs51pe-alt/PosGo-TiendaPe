@@ -49,7 +49,7 @@ const getStoreId = async (): Promise<string> => {
 export const StorageService = {
   saveSession: (user: UserProfile) => {
       localStorage.setItem(KEYS.SESSION, JSON.stringify(user));
-      cachedStoreId = null; // Forzar re-calculo del storeId al cambiar sesión
+      cachedStoreId = null;
   },
   getSession: (): UserProfile | null => {
     const s = localStorage.getItem(KEYS.SESSION);
@@ -66,7 +66,7 @@ export const StorageService = {
     await supabase.auth.signOut();
   },
 
-  // Leads & Stores (Super Admin)
+  // Leads & Stores
   saveLead: async (lead: Omit<Lead, 'id' | 'created_at'>) => {
       try {
           await supabase.from('leads').upsert({
@@ -110,7 +110,6 @@ export const StorageService = {
                   const prodImages = imagesData 
                       ? imagesData.filter((img: any) => img.product_id === p.id).map((img: any) => img.image_data)
                       : [];
-                  let variants = Array.isArray(p.variants) ? p.variants : [];
                   return {
                       id: p.id,
                       name: p.name,
@@ -118,8 +117,10 @@ export const StorageService = {
                       category: p.category,
                       stock: Number(p.stock),
                       barcode: p.barcode,
-                      hasVariants: variants.length > 0, 
-                      variants: variants,
+                      hasVariants: p.hasVariants || (p.variants && p.variants.length > 0),
+                      variants: p.variants || [],
+                      isPack: p.isPack || false,
+                      packItems: p.packItems || [],
                       images: prodImages 
                   };
               });
@@ -133,7 +134,12 @@ export const StorageService = {
   saveDemoProductToTemplate: async (product: Product): Promise<{ success: boolean; error?: string }> => {
       try {
           const storeId = DEMO_TEMPLATE_ID;
-          await supabase.from('stores').upsert({ id: storeId, settings: DEFAULT_SETTINGS });
+          
+          // Asegurar que la tienda exista primero para evitar error de FK
+          await supabase.from('stores').upsert({ 
+              id: storeId, 
+              settings: { ...DEFAULT_SETTINGS, name: 'Plantilla Cloud PosGo!' } 
+          }, { onConflict: 'id' });
 
           const { error: prodError } = await supabase.from('products').upsert({
               id: product.id,
@@ -142,9 +148,13 @@ export const StorageService = {
               stock: product.stock,
               category: product.category,
               barcode: product.barcode,
+              hasVariants: product.hasVariants || false,
               variants: product.variants || [], 
+              isPack: product.isPack || false,
+              packItems: product.packItems || [],
               store_id: storeId
           });
+          
           if (prodError) throw prodError;
 
           if (product.images) {
@@ -161,6 +171,7 @@ export const StorageService = {
 
           return { success: true };
       } catch (err: any) {
+          console.error("Error saving template product:", err);
           return { success: false, error: err.message };
       }
   },
@@ -168,7 +179,7 @@ export const StorageService = {
   // Products
   getProducts: async (): Promise<Product[]> => {
     const storeId = await getStoreId();
-    if(!storeId) return isDemo() ? await StorageService.getDemoTemplate() : [];
+    if (storeId === DEMO_TEMPLATE_ID) return await StorageService.getDemoTemplate();
 
     const { data: productsData } = await supabase.from('products').select('*').eq('store_id', storeId);
     if (!productsData) return [];
@@ -177,7 +188,6 @@ export const StorageService = {
     
     return productsData.map((p: any) => {
         const prodImages = imagesData ? imagesData.filter((img: any) => img.product_id === p.id).map((img: any) => img.image_data) : [];
-        let variants = Array.isArray(p.variants) ? p.variants : [];
         return { 
             id: p.id, 
             name: p.name, 
@@ -185,8 +195,10 @@ export const StorageService = {
             category: p.category, 
             stock: Number(p.stock), 
             barcode: p.barcode, 
-            hasVariants: variants.length > 0, 
-            variants: variants, 
+            hasVariants: p.hasVariants || (p.variants && p.variants.length > 0),
+            variants: p.variants || [], 
+            isPack: p.isPack || false,
+            packItems: p.packItems || [],
             images: prodImages 
         };
     });
@@ -201,7 +213,10 @@ export const StorageService = {
           stock: product.stock, 
           category: product.category, 
           barcode: product.barcode, 
+          hasVariants: product.hasVariants || false,
           variants: product.variants || [], 
+          isPack: product.isPack || false,
+          packItems: product.packItems || [],
           store_id: storeId 
       });
       if (product.images) {
@@ -227,7 +242,10 @@ export const StorageService = {
               stock: p.stock, 
               category: p.category, 
               barcode: p.barcode, 
+              hasVariants: p.hasVariants || false,
               variants: p.variants || [], 
+              isPack: p.isPack || false,
+              packItems: p.packItems || [],
               store_id: storeId 
           });
       }
