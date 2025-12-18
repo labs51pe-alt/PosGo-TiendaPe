@@ -6,14 +6,15 @@ interface LayoutProps {
   currentView: ViewState;
   onChangeView: (view: ViewState) => void;
   settings: StoreSettings;
-  user: UserProfile;
+  user: UserProfile | null;
   onLogout: () => void;
   children: React.ReactNode;
 }
 
 export const Layout: React.FC<LayoutProps> = ({ currentView, onChangeView, settings, user, onLogout, children }) => {
   
-  // Desktop Nav Item
+  const isSuperAdmin = user?.role === 'super_admin' || user?.id === 'god-mode';
+
   const NavItem = ({ view, icon: Icon, label, colorClass }: { view: ViewState; icon: any; label: string; colorClass: string }) => (
     <button
       onClick={() => onChangeView(view)}
@@ -27,14 +28,12 @@ export const Layout: React.FC<LayoutProps> = ({ currentView, onChangeView, setti
         <Icon className="w-6 h-6" />
       </div>
       <span className={`text-[10px] font-bold uppercase tracking-wider mt-1 transition-colors ${currentView === view ? 'text-slate-800' : 'text-slate-400'}`}>{label}</span>
-      
       {currentView === view && (
         <div className="absolute right-2 top-2 w-1.5 h-1.5 rounded-full bg-indigo-500"></div>
       )}
     </button>
   );
 
-  // Mobile Bottom Nav Item
   const MobileNavItem = ({ view, icon: Icon, label, colorClass }: { view: ViewState; icon: any; label: string; colorClass: string }) => (
     <button
       onClick={() => onChangeView(view)}
@@ -51,8 +50,6 @@ export const Layout: React.FC<LayoutProps> = ({ currentView, onChangeView, setti
 
   return (
     <div className="flex h-screen overflow-hidden relative bg-[#f8fafc]">
-      
-      {/* SIDEBAR NAVIGATION (Desktop) */}
       <div className="hidden lg:flex w-24 bg-white/70 backdrop-blur-2xl border-r border-slate-200/60 flex-col items-center py-6 z-20 shadow-xl shadow-indigo-100/20 overflow-y-auto custom-scrollbar">
         <div className="flex flex-col items-center mb-8 group cursor-default">
             <div className="w-14 h-14 bg-slate-900 rounded-2xl flex items-center justify-center shadow-lg shadow-slate-300 transform transition-transform group-hover:rotate-6 group-hover:scale-110">
@@ -66,7 +63,7 @@ export const Layout: React.FC<LayoutProps> = ({ currentView, onChangeView, setti
           <NavItem view={ViewState.INVENTORY} icon={Archive} label="Stock" colorClass="bg-emerald-50 text-emerald-600" />
           <NavItem view={ViewState.PURCHASES} icon={ShoppingBag} label="Compra" colorClass="bg-amber-50 text-amber-600" />
           
-          {user.role === 'admin' && (
+          {(user?.role === 'admin' || isSuperAdmin) && (
             <>
              <div className="h-px bg-slate-200 w-1/2 mx-auto my-3 opacity-50"></div>
              <NavItem view={ViewState.REPORTS} icon={FileText} label="Reportes" colorClass="bg-blue-50 text-blue-600" />
@@ -75,8 +72,7 @@ export const Layout: React.FC<LayoutProps> = ({ currentView, onChangeView, setti
             </>
           )}
 
-          {/* SUPER ADMIN ITEM */}
-          {user.id === 'god-mode' && (
+          {isSuperAdmin && (
              <>
                 <div className="h-px bg-slate-200 w-1/2 mx-auto my-3 opacity-50"></div>
                 <NavItem view={ViewState.SUPER_ADMIN} icon={ShieldAlert} label="Super" colorClass="bg-red-50 text-red-600" />
@@ -85,7 +81,7 @@ export const Layout: React.FC<LayoutProps> = ({ currentView, onChangeView, setti
         </div>
 
         <div className="mt-4 flex flex-col items-center gap-4 px-3 w-full shrink-0">
-          <div className="w-10 h-10 rounded-full bg-slate-100 border border-slate-200 flex items-center justify-center text-slate-500 hover:text-indigo-600 hover:bg-white hover:shadow-md transition-all cursor-pointer" title={user.name}>
+          <div className="w-10 h-10 rounded-full bg-slate-100 border border-slate-200 flex items-center justify-center text-slate-500" title={user?.name || 'Usuario'}>
              <User className="w-5 h-5"/>
           </div>
           <button onClick={onLogout} className="p-3 rounded-xl text-slate-300 hover:text-red-500 hover:bg-red-50 transition-colors w-full flex justify-center group" title="Cerrar Sesión">
@@ -94,12 +90,11 @@ export const Layout: React.FC<LayoutProps> = ({ currentView, onChangeView, setti
         </div>
       </div>
 
-      {/* BOTTOM NAVIGATION (Mobile) */}
       <div className="lg:hidden fixed bottom-0 left-0 w-full bg-white border-t border-slate-200 z-[40] pb-safe flex justify-between px-2 shadow-[0_-10px_40px_rgba(0,0,0,0.05)]">
           <MobileNavItem view={ViewState.POS} icon={ShoppingCart} label="Venta" colorClass="" />
           <MobileNavItem view={ViewState.INVENTORY} icon={Archive} label="Stock" colorClass="" />
           <MobileNavItem view={ViewState.PURCHASES} icon={ShoppingBag} label="Compra" colorClass="" />
-          {user.role === 'admin' && (
+          {(user?.role === 'admin' || isSuperAdmin) && (
               <MobileNavItem view={ViewState.ADMIN} icon={BarChart2} label="Dash" colorClass="" />
           )}
           <button onClick={onLogout} className="flex-1 flex flex-col items-center justify-center py-3 text-slate-300 hover:text-red-500">
@@ -108,7 +103,6 @@ export const Layout: React.FC<LayoutProps> = ({ currentView, onChangeView, setti
           </button>
       </div>
 
-      {/* Main Content Area */}
       <div className="flex-1 relative overflow-hidden flex flex-col z-10 lg:pb-0 pb-[70px]">
           {children}
       </div>

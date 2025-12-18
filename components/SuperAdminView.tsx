@@ -1,8 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { Lead, Store, Product } from '../types';
 import { StorageService } from '../services/storageService';
-import { Users, Building2, Trash2, MessageCircle, Phone, Calendar, RefreshCw, ShieldAlert, Check, Database, Package, Plus, Edit, RotateCcw, Lock, Copy, Terminal, X, ImageIcon } from 'lucide-react';
-import { CATEGORIES } from '../constants';
+import { Users, Building2, Trash2, RefreshCw, ShieldAlert, Package, Plus, Edit, X, ImageIcon, Terminal } from 'lucide-react';
 
 interface SuperAdminProps {
     onEditProduct?: (product: Product) => void;
@@ -119,7 +118,23 @@ WITH CHECK (store_id = '00000000-0000-0000-0000-000000000000');
                                         <th className="p-6 text-right">Acciones</th>
                                     </>
                                 )}
-                                {/* ... Other headers for Leads/Stores as before ... */}
+                                {activeTab === 'LEADS' && (
+                                    <>
+                                        <th className="p-6">Nombre</th>
+                                        <th className="p-6">Negocio</th>
+                                        <th className="p-6">Teléfono</th>
+                                        <th className="p-6">Fecha</th>
+                                        <th className="p-6">Status</th>
+                                    </>
+                                )}
+                                {activeTab === 'STORES' && (
+                                    <>
+                                        <th className="p-6">Store ID</th>
+                                        <th className="p-6">Nombre</th>
+                                        <th className="p-6">Creada</th>
+                                        <th className="p-6">Status</th>
+                                    </>
+                                )}
                             </tr>
                         </thead>
                         <tbody className="divide-y divide-slate-50">
@@ -143,21 +158,39 @@ WITH CHECK (store_id = '00000000-0000-0000-0000-000000000000');
                                     </td>
                                 </tr>
                             ))}
+                            
+                            {activeTab === 'LEADS' && leads.map((l) => (
+                                <tr key={l.id} className="hover:bg-slate-50/50">
+                                    <td className="p-6 font-bold text-slate-800">{l.name}</td>
+                                    <td className="p-6 font-medium text-slate-600">{l.business_name}</td>
+                                    <td className="p-6 font-mono text-emerald-600">+{l.phone}</td>
+                                    <td className="p-6 text-xs text-slate-400">{new Date(l.created_at).toLocaleDateString()}</td>
+                                    <td className="p-6"><span className="px-2 py-1 rounded-full bg-indigo-50 text-indigo-600 text-[10px] font-black">{l.status || 'NEW'}</span></td>
+                                </tr>
+                            ))}
+
+                            {activeTab === 'STORES' && stores.map((s) => (
+                                <tr key={s.id} className="hover:bg-slate-50/50">
+                                    <td className="p-6 font-mono text-[10px] text-slate-400">{s.id}</td>
+                                    <td className="p-6 font-bold text-slate-800">{s.settings?.name || 'Store'}</td>
+                                    <td className="p-6 text-xs text-slate-400">{new Date(s.created_at).toLocaleDateString()}</td>
+                                    <td className="p-6"><span className="px-2 py-1 rounded-full bg-slate-100 text-slate-500 text-[10px] font-bold">ACTIVE</span></td>
+                                </tr>
+                            ))}
                         </tbody>
                     </table>
                 </div>
             </div>
 
-            {/* SQL HELP MODAL - As Before */}
             {showSqlHelp && (
                 <div className="fixed inset-0 bg-slate-900/80 backdrop-blur-sm z-[200] flex items-center justify-center p-4">
                     <div className="bg-white rounded-[2rem] w-full max-w-2xl p-6 shadow-2xl animate-fade-in-up">
                         <div className="flex justify-between items-center mb-6">
                              <h3 className="font-black text-xl">Ejecutar en Supabase SQL Editor</h3>
-                             <button onClick={() => setShowSqlHelp(false)}><X/></button>
+                             <button onClick={() => setShowSqlHelp(false)}><X className="w-6 h-6"/></button>
                         </div>
-                        <pre className="bg-slate-900 text-emerald-400 p-4 rounded-xl text-xs overflow-x-auto mb-4">{SQL_CODE}</pre>
-                        <button onClick={() => { navigator.clipboard.writeText(SQL_CODE); alert("Copiado"); }} className="w-full py-3 bg-indigo-600 text-white rounded-xl font-bold">Copiar Código SQL</button>
+                        <pre className="bg-slate-900 text-emerald-400 p-4 rounded-xl text-xs overflow-x-auto mb-4 custom-scrollbar">{SQL_CODE}</pre>
+                        <button onClick={() => { navigator.clipboard.writeText(SQL_CODE); alert("Copiado al portapapeles"); }} className="w-full py-3 bg-indigo-600 text-white rounded-xl font-bold hover:bg-indigo-700 transition-colors">Copiar Código SQL</button>
                     </div>
                 </div>
             )}

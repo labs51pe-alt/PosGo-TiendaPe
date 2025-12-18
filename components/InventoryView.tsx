@@ -112,8 +112,6 @@ export const InventoryView: React.FC<InventoryProps> = ({
                     
                     if (data.length > 0) {
                         alert(`Se detectaron ${data.length} productos. Función de importación simulada exitosamente.`);
-                        // Here you would implement the actual state update logic
-                        // combining existing products with new ones based on ID/Barcode
                     }
                 } catch (error) {
                     alert('Error al leer el archivo. Asegúrate de que sea un Excel válido.');
@@ -221,7 +219,6 @@ export const InventoryView: React.FC<InventoryProps> = ({
                                                 <span className="bg-slate-100 text-slate-500 px-3 py-1 rounded-full text-xs font-bold">{p.category}</span>
                                             </td>
                                             <td className="p-6 text-right text-slate-400 text-sm font-medium">
-                                                {/* Simulated cost as 70% of price if not tracked */}
                                                 {settings.currency}{(p.price * 0.7).toFixed(2)}
                                             </td>
                                             <td className="p-6 text-right font-black text-slate-800">

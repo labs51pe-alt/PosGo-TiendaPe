@@ -18,7 +18,7 @@ export interface ProductVariant {
 
 export interface PackItem {
     productId: string;
-    productName: string; // Cached name for display
+    productName: string; // Nombre guardado para visualización rápida
     quantity: number;
 }
 
@@ -31,8 +31,8 @@ export interface Product {
   barcode?: string;
   hasVariants?: boolean;
   variants?: ProductVariant[];
-  isPack?: boolean;     // New: Identifies if this is a bundle
-  packItems?: PackItem[]; // New: List of contents
+  isPack?: boolean;     
+  packItems?: PackItem[]; 
   images?: string[]; 
   description?: string;
   cost?: number; 
@@ -64,7 +64,7 @@ export interface Transaction {
   payments?: PaymentDetail[];
   profit: number;
   shiftId?: string;
-  storeId?: string; // Supabase linkage
+  storeId?: string; 
 }
 
 export interface StoreSettings {
@@ -80,7 +80,7 @@ export interface UserProfile {
   id: string;
   name: string;
   role: 'admin' | 'cashier' | 'super_admin' | 'owner';
-  storeId?: string; // Link to Supabase Store
+  storeId?: string; 
   email?: string;
 }
 
