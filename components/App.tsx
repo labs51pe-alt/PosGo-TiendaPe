@@ -20,7 +20,7 @@ import { Save, Image as ImageIcon, Plus, Check, X, Trash2, Search, Package } fro
 
 const App: React.FC = () => {
   const [user, setUser] = useState<UserProfile | null>(null);
-  const [view, setView] = useState<ViewState>(ViewState.POS);
+  const [view, setView] = useState<ViewState | null>(null); // Iniciamos en null para evitar parpadeos
   const [showOnboarding, setShowOnboarding] = useState(false);
   const [loading, setLoading] = useState(true);
   const initialized = useRef(false);
@@ -56,7 +56,16 @@ const App: React.FC = () => {
   const [variantStock, setVariantStock] = useState('');
   const [packSearchTerm, setPackSearchTerm] = useState('');
 
-  // Función de refresco resiliente de datos
+  // Fix: Defining packSearchSuggestions to resolve missing name error
+  const packSearchSuggestions = useMemo(() => {
+    if (!packSearchTerm || packSearchTerm.length < 2) return [];
+    return products.filter(p => 
+      !p.isPack && 
+      p.name.toLowerCase().includes(packSearchTerm.toLowerCase())
+    ).slice(0, 5);
+  }, [products, packSearchTerm]);
+
+  // Función de refresco optimizada
   const refreshAllData = useCallback(async (forcedShiftId?: string | null) => {
       const currentActiveId = forcedShiftId !== undefined ? forcedShiftId : StorageService.getActiveShiftId();
       
@@ -90,41 +99,47 @@ const App: React.FC = () => {
       setActiveShiftId(currentActiveId);
   }, [localShiftCache]);
 
-  // EFECTO DE MONTAJE (Corre una sola vez)
+  // EFECTO DE MONTAJE: Una sola ejecución al inicio
   useEffect(() => {
     const initApp = async () => {
         if (initialized.current) return;
-        setLoading(true);
+        initialized.current = true;
         
+        setLoading(true);
         const savedUser = StorageService.getSession();
+        
         if (savedUser) { 
             setUser(savedUser); 
             
-            // Establecer vista inicial solo en el primer arranque por rol
-            if (savedUser.role === 'super_admin' || savedUser.id === 'god-mode') setView(ViewState.SUPER_ADMIN);
-            else if (savedUser.role === 'admin') setView(ViewState.ADMIN);
-            else setView(ViewState.POS);
+            // PRIMERO DETERMINAMOS LA VISTA SEGÚN ROL
+            let initialView = ViewState.POS;
+            if (savedUser.role === 'super_admin' || savedUser.id === 'god-mode') initialView = ViewState.SUPER_ADMIN;
+            else if (savedUser.role === 'admin') initialView = ViewState.ADMIN;
+            
+            setView(initialView);
 
-            const sh = await StorageService.getShifts();
+            // LUEGO CARGAMOS DATOS
             const activeId = StorageService.getActiveShiftId();
             if (activeId) {
+                const sh = await StorageService.getShifts();
                 const active = sh.find(s => s.id === activeId);
                 if (active) setLocalShiftCache(active);
             }
             await refreshAllData();
         } else {
+             // Si no hay usuario, aseguramos que cargue Auth
+             setView(ViewState.POS);
              setProducts(await StorageService.getProducts());
         }
         
-        initialized.current = true;
         setLoading(false);
     };
     initApp();
   }, [refreshAllData]);
 
-  // EFECTO PARA ACTUALIZAR DATOS SIN CAMBIAR LA VISTA
+  // Actualización de datos silenciosa (sin activar loading de pantalla completa)
   useEffect(() => {
-      if (initialized.current && user) {
+      if (initialized.current && user && !loading) {
           refreshAllData();
       }
   }, [refreshTrigger, user, refreshAllData]);
@@ -138,16 +153,19 @@ const App: React.FC = () => {
     setLoading(true);
     StorageService.saveSession(loggedInUser);
     setUser(loggedInUser);
+    
+    // Decidir vista antes de quitar el loading
+    let nextView = ViewState.POS;
+    if (loggedInUser.role === 'super_admin' || loggedInUser.id === 'god-mode') nextView = ViewState.SUPER_ADMIN;
+    else if (loggedInUser.role === 'admin') nextView = ViewState.ADMIN;
+    
+    setView(nextView);
     await refreshAllData();
     setLoading(false);
-    
-    // Navegación post-login
-    if (loggedInUser.role === 'super_admin' || loggedInUser.id === 'god-mode') setView(ViewState.SUPER_ADMIN);
-    else if (loggedInUser.role === 'admin') setView(ViewState.ADMIN);
-    else setView(ViewState.POS); 
   };
 
   const handleLogout = async () => { 
+      setLoading(true);
       await StorageService.clearSession(); 
       setUser(null); 
       setCart([]); 
@@ -155,7 +173,7 @@ const App: React.FC = () => {
       setLocalShiftCache(null);
       setShifts([]);
       setView(ViewState.POS);
-      initialized.current = false;
+      setLoading(false);
   };
 
   const handleAddToCart = (product: Product, variantId?: string) => { 
@@ -264,8 +282,6 @@ const App: React.FC = () => {
           }; 
           await StorageService.saveMovement(move); 
           await refreshAllData(newId);
-          
-          // FORZAR PERMANECER EN POS TRAS APERTURA
           setView(ViewState.POS);
 
       } else if (action === 'CLOSE' && activeShift) {
@@ -353,15 +369,6 @@ const App: React.FC = () => {
       setView(ViewState.PURCHASES);
   };
 
-  const packSearchSuggestions = useMemo(() => {
-    if (!packSearchTerm || packSearchTerm.length < 2) return [];
-    return products.filter(p => 
-        p.id !== currentProduct?.id && 
-        !p.isPack &&
-        (p.name.toLowerCase().includes(packSearchTerm.toLowerCase()) || p.barcode?.includes(packSearchTerm))
-    ).slice(0, 5);
-  }, [packSearchTerm, products, currentProduct]);
-
   const addPackItem = (p: Product) => {
     if (!currentProduct) return;
     const newItem: PackItem = { productId: p.id, productName: p.name, quantity: 1 };
@@ -371,12 +378,26 @@ const App: React.FC = () => {
     setPackSearchTerm('');
   };
 
-  if (loading && products.length === 0) return <div className="h-screen flex items-center justify-center bg-slate-50"><div className="w-10 h-10 border-4 border-indigo-500 border-t-transparent rounded-full animate-spin"></div></div>;
+  // PANTALLA DE CARGA TOTALMENTE LIMPIA
+  if (loading || (user && view === null)) {
+      return (
+        <div className="h-screen flex flex-col items-center justify-center bg-white">
+            <div className="w-20 h-20 bg-slate-900 rounded-3xl flex items-center justify-center shadow-2xl animate-bounce mb-8">
+                <Search className="w-10 h-10 text-white animate-pulse" />
+            </div>
+            <div className="w-48 h-1.5 bg-slate-100 rounded-full overflow-hidden">
+                <div className="h-full bg-indigo-600 animate-shimmer" style={{ width: '100%' }}></div>
+            </div>
+            <p className="mt-6 text-slate-400 font-bold text-sm tracking-widest uppercase animate-pulse">Sincronizando PosGo!...</p>
+        </div>
+      );
+  }
+
   if (!user) return <Auth onLogin={handleLogin} />;
 
   return (
     <>
-        <Layout currentView={view} onChangeView={setView} settings={settings} user={user} onLogout={handleLogout}>
+        <Layout currentView={view || ViewState.POS} onChangeView={setView} settings={settings} user={user} onLogout={handleLogout}>
             {view === ViewState.POS && <POSView products={products} cart={cart} transactions={transactions} activeShift={activeShift} settings={settings} customers={customers} onAddToCart={handleAddToCart} onUpdateCart={handleUpdateCartQuantity} onRemoveItem={handleRemoveFromCart} onUpdateDiscount={handleUpdateDiscount} onCheckout={handleCheckout} onClearCart={() => setCart([])} onOpenCashControl={() => setShowCashControl(true)} />}
             {view === ViewState.INVENTORY && <InventoryView products={products} settings={settings} transactions={transactions} purchases={purchases} onNewProduct={() => { setCurrentProduct({ id: '', name: '', price: 0, category: CATEGORIES[0], stock: 0, variants: [], packItems: [], images: [], isPack: false, hasVariants: false }); setIsProductModalOpen(true); }} onEditProduct={(p) => { setCurrentProduct({ ...p, variants: p.variants || [], packItems: p.packItems || [] }); setIsProductModalOpen(true); }} onDeleteProduct={async (id) => { if(window.confirm('¿Eliminar producto?')) { await StorageService.deleteDemoProduct(id); await refreshAllData(); } }} onGoToPurchase={handleGoToPurchase} />}
             {view === ViewState.PURCHASES && <PurchasesView products={products} suppliers={suppliers} purchases={purchases} settings={settings} onProcessPurchase={async (pur, updated) => { await StorageService.savePurchase(pur); await StorageService.saveProducts(updated); await refreshAllData(); }} onAddSupplier={async (s) => { await StorageService.saveSupplier(s); await refreshAllData(); }} onRequestNewProduct={(barcode) => { setCurrentProduct({ id: '', name: '', price: 0, category: CATEGORIES[0], stock: 0, variants: [], packItems: [], barcode: barcode || '', images: [], isPack: false, hasVariants: false }); setIsProductModalOpen(true); }} initialSearchTerm={initialPurchaseSearch} onClearInitialSearch={() => setInitialPurchaseSearch('')} />}
@@ -438,7 +459,7 @@ const App: React.FC = () => {
                                     <div className={`w-6 h-6 rounded-lg border-2 flex items-center justify-center transition-colors ${currentProduct.hasVariants ? 'bg-indigo-600 border-indigo-600' : 'border-slate-300'}`}>
                                         {currentProduct.hasVariants && <Check className="w-4 h-4 text-white" />}
                                     </div>
-                                    <input type="checkbox" className="hidden" checked={currentProduct.hasVariants || false} onChange={e => setCurrentProduct({...currentProduct, hasVariants: e.target.checked, isPack: false})} /> 
+                                    <input type="checkbox" className="hidden" checked={currentProduct.hasVariants || false} onChange={e => setCurrentProduct({...currentProduct, hasVariants: e.target.checked, iSPack: false})} /> 
                                     <span className="font-bold text-slate-700 text-sm">Tiene Variantes</span>
                                 </label>
 
