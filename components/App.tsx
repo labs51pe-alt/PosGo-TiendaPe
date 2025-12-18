@@ -56,7 +56,7 @@ const App: React.FC = () => {
   const [variantStock, setVariantStock] = useState('');
   const [packSearchTerm, setPackSearchTerm] = useState('');
 
-  // Fix: Defining packSearchSuggestions to resolve missing name error
+  // Definición de sugerencias de búsqueda para combos
   const packSearchSuggestions = useMemo(() => {
     if (!packSearchTerm || packSearchTerm.length < 2) return [];
     return products.filter(p => 
@@ -99,7 +99,7 @@ const App: React.FC = () => {
       setActiveShiftId(currentActiveId);
   }, [localShiftCache]);
 
-  // EFECTO DE MONTAJE: Una sola ejecución al inicio
+  // EFECTO DE MONTAJE
   useEffect(() => {
     const initApp = async () => {
         if (initialized.current) return;
@@ -111,14 +111,12 @@ const App: React.FC = () => {
         if (savedUser) { 
             setUser(savedUser); 
             
-            // PRIMERO DETERMINAMOS LA VISTA SEGÚN ROL
             let initialView = ViewState.POS;
             if (savedUser.role === 'super_admin' || savedUser.id === 'god-mode') initialView = ViewState.SUPER_ADMIN;
             else if (savedUser.role === 'admin') initialView = ViewState.ADMIN;
             
             setView(initialView);
 
-            // LUEGO CARGAMOS DATOS
             const activeId = StorageService.getActiveShiftId();
             if (activeId) {
                 const sh = await StorageService.getShifts();
@@ -127,7 +125,6 @@ const App: React.FC = () => {
             }
             await refreshAllData();
         } else {
-             // Si no hay usuario, aseguramos que cargue Auth
              setView(ViewState.POS);
              setProducts(await StorageService.getProducts());
         }
@@ -137,7 +134,6 @@ const App: React.FC = () => {
     initApp();
   }, [refreshAllData]);
 
-  // Actualización de datos silenciosa (sin activar loading de pantalla completa)
   useEffect(() => {
       if (initialized.current && user && !loading) {
           refreshAllData();
@@ -154,7 +150,6 @@ const App: React.FC = () => {
     StorageService.saveSession(loggedInUser);
     setUser(loggedInUser);
     
-    // Decidir vista antes de quitar el loading
     let nextView = ViewState.POS;
     if (loggedInUser.role === 'super_admin' || loggedInUser.id === 'god-mode') nextView = ViewState.SUPER_ADMIN;
     else if (loggedInUser.role === 'admin') nextView = ViewState.ADMIN;
@@ -378,7 +373,6 @@ const App: React.FC = () => {
     setPackSearchTerm('');
   };
 
-  // PANTALLA DE CARGA TOTALMENTE LIMPIA
   if (loading || (user && view === null)) {
       return (
         <div className="h-screen flex flex-col items-center justify-center bg-white">
@@ -459,7 +453,7 @@ const App: React.FC = () => {
                                     <div className={`w-6 h-6 rounded-lg border-2 flex items-center justify-center transition-colors ${currentProduct.hasVariants ? 'bg-indigo-600 border-indigo-600' : 'border-slate-300'}`}>
                                         {currentProduct.hasVariants && <Check className="w-4 h-4 text-white" />}
                                     </div>
-                                    <input type="checkbox" className="hidden" checked={currentProduct.hasVariants || false} onChange={e => setCurrentProduct({...currentProduct, hasVariants: e.target.checked, iSPack: false})} /> 
+                                    <input type="checkbox" className="hidden" checked={currentProduct.hasVariants || false} onChange={e => setCurrentProduct({...currentProduct, hasVariants: e.target.checked, isPack: false})} /> 
                                     <span className="font-bold text-slate-700 text-sm">Tiene Variantes</span>
                                 </label>
 
