@@ -16,13 +16,14 @@ import { CashControlModal } from './CashControlModal';
 import { POSView } from './POSView';
 import { SuperAdminView } from './SuperAdminView';
 import { DEFAULT_SETTINGS, CATEGORIES } from '../constants';
-import { Save, Image as ImageIcon, Plus, Check, X, Trash2, Search, Package } from 'lucide-react';
+import { Save, Image as ImageIcon, Plus, Check, X, Trash2, Search, Package, RefreshCw } from 'lucide-react';
 
 const App: React.FC = () => {
   const [user, setUser] = useState<UserProfile | null>(null);
   const [view, setView] = useState<ViewState | null>(null); 
   const [showOnboarding, setShowOnboarding] = useState(false);
   const [loading, setLoading] = useState(true);
+  const [isSaving, setIsSaving] = useState(false);
   const initialized = useRef(false);
 
   // Data State
@@ -318,27 +319,40 @@ const App: React.FC = () => {
   };
 
   const handleSaveProduct = async () => {
-      if (!currentProduct?.name) return;
-      let pToSave = { ...currentProduct };
-      if (pToSave.hasVariants && pToSave.variants) pToSave.stock = pToSave.variants.reduce((acc, v) => acc + (Number(v.stock) || 0), 0);
-      
-      const isValidUUID = (id: string) => /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(id);
-      if (!pToSave.id || !isValidUUID(pToSave.id)) pToSave.id = crypto.randomUUID();
-
-      if (view === ViewState.SUPER_ADMIN) {
-          const result = await StorageService.saveDemoProductToTemplate(pToSave);
-          if (result.success) {
-              setRefreshTrigger(prev => prev + 1);
-              setIsProductModalOpen(false);
-          } else {
-              alert("Error al guardar en Plantilla Cloud: " + result.error);
-          }
+      if (!currentProduct?.name?.trim()) {
+          alert("El nombre del producto es obligatorio.");
           return;
       }
+      
+      setIsSaving(true);
+      try {
+          let pToSave = { ...currentProduct };
+          if (pToSave.hasVariants && pToSave.variants) {
+              pToSave.stock = pToSave.variants.reduce((acc, v) => acc + (Number(v.stock) || 0), 0);
+          }
+          
+          const isValidUUID = (id: string) => /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(id);
+          if (!pToSave.id || !isValidUUID(pToSave.id)) pToSave.id = crypto.randomUUID();
 
-      await StorageService.saveProductWithImages(pToSave);
-      await refreshAllData();
-      setIsProductModalOpen(false);
+          if (view === ViewState.SUPER_ADMIN) {
+              const result = await StorageService.saveDemoProductToTemplate(pToSave);
+              if (result.success) {
+                  setRefreshTrigger(prev => prev + 1);
+                  setIsProductModalOpen(false);
+              } else {
+                  alert("Error al guardar en Plantilla Cloud: " + result.error);
+              }
+          } else {
+              await StorageService.saveProductWithImages(pToSave);
+              await refreshAllData();
+              setIsProductModalOpen(false);
+          }
+      } catch (error: any) {
+          console.error("Error saving product:", error);
+          alert("Error al guardar: " + (error.message || "Error desconocido"));
+      } finally {
+          setIsSaving(false);
+      }
   };
   
   const handleImageUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -546,8 +560,21 @@ const App: React.FC = () => {
                         </div>
                     </div>
                     <div className="p-6 border-t border-slate-100 flex justify-end gap-3 bg-slate-50/50">
-                        <button onClick={() => setIsProductModalOpen(false)} className="px-6 py-3 text-slate-500 font-bold hover:bg-slate-100 rounded-xl">Cancelar</button>
-                        <button onClick={handleSaveProduct} className="px-8 py-3 bg-slate-900 text-white rounded-xl font-bold shadow-lg hover:scale-105 active:scale-95 transition-all"><Save className="w-5 h-5 inline-block mr-2"/> Guardar</button>
+                        <button 
+                            onClick={() => setIsProductModalOpen(false)} 
+                            disabled={isSaving}
+                            className="px-6 py-3 text-slate-500 font-bold hover:bg-slate-100 rounded-xl disabled:opacity-50"
+                        >
+                            Cancelar
+                        </button>
+                        <button 
+                            onClick={handleSaveProduct} 
+                            disabled={isSaving}
+                            className="px-8 py-3 bg-slate-900 text-white rounded-xl font-bold shadow-lg hover:scale-105 active:scale-95 transition-all flex items-center gap-2 disabled:bg-slate-400 disabled:scale-100"
+                        >
+                            {isSaving ? <RefreshCw className="w-5 h-5 animate-spin"/> : <Save className="w-5 h-5"/>}
+                            {isSaving ? "Guardando..." : "Guardar"}
+                        </button>
                     </div>
                 </div>
             </div>
