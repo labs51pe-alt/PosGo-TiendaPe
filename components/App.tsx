@@ -20,7 +20,7 @@ import { Save, Image as ImageIcon, Plus, Check, X, Trash2, Search, Package } fro
 
 const App: React.FC = () => {
   const [user, setUser] = useState<UserProfile | null>(null);
-  const [view, setView] = useState<ViewState | null>(null); // Iniciamos en null para evitar parpadeos
+  const [view, setView] = useState<ViewState | null>(null); 
   const [showOnboarding, setShowOnboarding] = useState(false);
   const [loading, setLoading] = useState(true);
   const initialized = useRef(false);
@@ -56,7 +56,6 @@ const App: React.FC = () => {
   const [variantStock, setVariantStock] = useState('');
   const [packSearchTerm, setPackSearchTerm] = useState('');
 
-  // Definición de sugerencias de búsqueda para combos
   const packSearchSuggestions = useMemo(() => {
     if (!packSearchTerm || packSearchTerm.length < 2) return [];
     return products.filter(p => 
@@ -65,7 +64,6 @@ const App: React.FC = () => {
     ).slice(0, 5);
   }, [products, packSearchTerm]);
 
-  // Función de refresco optimizada
   const refreshAllData = useCallback(async (forcedShiftId?: string | null) => {
       const currentActiveId = forcedShiftId !== undefined ? forcedShiftId : StorageService.getActiveShiftId();
       
@@ -99,7 +97,6 @@ const App: React.FC = () => {
       setActiveShiftId(currentActiveId);
   }, [localShiftCache]);
 
-  // EFECTO DE MONTAJE
   useEffect(() => {
     const initApp = async () => {
         if (initialized.current) return;
@@ -334,7 +331,7 @@ const App: React.FC = () => {
               setRefreshTrigger(prev => prev + 1);
               setIsProductModalOpen(false);
           } else {
-              alert("Error: " + result.error);
+              alert("Error al guardar en Plantilla Cloud: " + result.error);
           }
           return;
       }
