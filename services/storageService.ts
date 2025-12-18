@@ -46,6 +46,27 @@ const getStoreId = async (): Promise<string> => {
     return DEMO_TEMPLATE_ID;
 };
 
+const mapProduct = (p: any, imagesData: any[] = []): Product => {
+    const prodImages = imagesData 
+        ? imagesData.filter((img: any) => img.product_id === p.id).map((img: any) => img.image_data)
+        : [];
+    return {
+        id: p.id,
+        name: p.name || '',
+        price: Number(p.price) || 0,
+        category: p.category || 'General',
+        stock: Number(p.stock) || 0,
+        barcode: p.barcode || '',
+        hasVariants: p.hasVariants === true || (Array.isArray(p.variants) && p.variants.length > 0),
+        variants: Array.isArray(p.variants) ? p.variants : [],
+        isPack: p.isPack === true || (Array.isArray(p.packItems) && p.packItems.length > 0),
+        packItems: Array.isArray(p.packItems) ? p.packItems : [],
+        images: prodImages,
+        description: p.description || '',
+        cost: Number(p.cost) || 0
+    };
+};
+
 export const StorageService = {
   saveSession: (user: UserProfile) => {
       localStorage.setItem(KEYS.SESSION, JSON.stringify(user));
@@ -106,24 +127,7 @@ export const StorageService = {
                   .select('*')
                   .eq('store_id', DEMO_TEMPLATE_ID);
 
-              return productsData.map((p: any) => {
-                  const prodImages = imagesData 
-                      ? imagesData.filter((img: any) => img.product_id === p.id).map((img: any) => img.image_data)
-                      : [];
-                  return {
-                      id: p.id,
-                      name: p.name,
-                      price: Number(p.price),
-                      category: p.category,
-                      stock: Number(p.stock),
-                      barcode: p.barcode,
-                      hasVariants: p.hasVariants || (p.variants && p.variants.length > 0),
-                      variants: p.variants || [],
-                      isPack: p.isPack || false,
-                      packItems: p.packItems || [],
-                      images: prodImages 
-                  };
-              });
+              return productsData.map((p: any) => mapProduct(p, imagesData || []));
           }
       } catch (e) {
           console.error("Error fetching cloud template:", e);
@@ -135,27 +139,39 @@ export const StorageService = {
       try {
           const storeId = DEMO_TEMPLATE_ID;
           
-          // Asegurar que la tienda exista primero para evitar error de FK
-          await supabase.from('stores').upsert({ 
+          // Asegurar tienda
+          const { error: storeError } = await supabase.from('stores').upsert({ 
               id: storeId, 
+              name: 'Plantilla Cloud PosGo!',
               settings: { ...DEFAULT_SETTINGS, name: 'Plantilla Cloud PosGo!' } 
           }, { onConflict: 'id' });
 
-          const { error: prodError } = await supabase.from('products').upsert({
+          if (storeError) {
+              throw new Error("Error en Tienda Global: " + (storeError.message || JSON.stringify(storeError)));
+          }
+
+          // Limpieza de datos antes de enviar
+          const payload = {
               id: product.id,
               name: product.name,
-              price: product.price,
-              stock: product.stock,
+              price: Number(product.price) || 0,
+              stock: Number(product.stock) || 0,
               category: product.category,
-              barcode: product.barcode,
-              hasVariants: product.hasVariants || false,
-              variants: product.variants || [], 
-              isPack: product.isPack || false,
-              packItems: product.packItems || [],
+              barcode: product.barcode || '',
+              description: product.description || '',
+              cost: Number(product.cost) || 0,
+              hasVariants: !!product.hasVariants,
+              variants: Array.isArray(product.variants) ? product.variants : [], 
+              isPack: !!product.isPack,
+              packItems: Array.isArray(product.packItems) ? product.packItems : [],
               store_id: storeId
-          });
+          };
+
+          const { error: prodError } = await supabase.from('products').upsert(payload);
           
-          if (prodError) throw prodError;
+          if (prodError) {
+              throw new Error("Error en Producto Global: " + (prodError.message || JSON.stringify(prodError)));
+          }
 
           if (product.images) {
               await supabase.from('product_images').delete().eq('product_id', product.id).eq('store_id', storeId);
@@ -165,14 +181,16 @@ export const StorageService = {
                       image_data: imgData, 
                       store_id: storeId
                   }));
-                  await supabase.from('product_images').insert(imageInserts);
+                  const { error: imgError } = await supabase.from('product_images').insert(imageInserts);
+                  if (imgError) console.error("Error saving product template images:", imgError);
               }
           }
 
           return { success: true };
       } catch (err: any) {
-          console.error("Error saving template product:", err);
-          return { success: false, error: err.message };
+          console.error("saveDemoProductToTemplate Catch:", err);
+          const errorMessage = err.message || (typeof err === 'object' ? JSON.stringify(err) : String(err));
+          return { success: false, error: errorMessage };
       }
   },
 
@@ -186,39 +204,29 @@ export const StorageService = {
     
     const { data: imagesData } = await supabase.from('product_images').select('*').eq('store_id', storeId);
     
-    return productsData.map((p: any) => {
-        const prodImages = imagesData ? imagesData.filter((img: any) => img.product_id === p.id).map((img: any) => img.image_data) : [];
-        return { 
-            id: p.id, 
-            name: p.name, 
-            price: Number(p.price), 
-            category: p.category, 
-            stock: Number(p.stock), 
-            barcode: p.barcode, 
-            hasVariants: p.hasVariants || (p.variants && p.variants.length > 0),
-            variants: p.variants || [], 
-            isPack: p.isPack || false,
-            packItems: p.packItems || [],
-            images: prodImages 
-        };
-    });
+    return productsData.map((p: any) => mapProduct(p, imagesData || []));
   },
   
   saveProductWithImages: async (product: Product) => {
       const storeId = await getStoreId();
-      await supabase.from('products').upsert({ 
+      const { error: prodError } = await supabase.from('products').upsert({ 
           id: product.id, 
           name: product.name, 
-          price: product.price, 
-          stock: product.stock, 
+          price: Number(product.price) || 0, 
+          stock: Number(product.stock) || 0, 
           category: product.category, 
-          barcode: product.barcode, 
-          hasVariants: product.hasVariants || false,
-          variants: product.variants || [], 
-          isPack: product.isPack || false,
-          packItems: product.packItems || [],
+          barcode: product.barcode || '', 
+          description: product.description || '',
+          cost: Number(product.cost) || 0,
+          hasVariants: !!product.hasVariants,
+          variants: Array.isArray(product.variants) ? product.variants : [], 
+          isPack: !!product.isPack,
+          packItems: Array.isArray(product.packItems) ? product.packItems : [],
           store_id: storeId 
       });
+      
+      if (prodError) throw prodError;
+
       if (product.images) {
           await supabase.from('product_images').delete().eq('product_id', product.id).eq('store_id', storeId);
           if (product.images.length > 0) {
@@ -238,14 +246,16 @@ export const StorageService = {
           await supabase.from('products').upsert({ 
               id: p.id, 
               name: p.name, 
-              price: p.price, 
-              stock: p.stock, 
+              price: Number(p.price) || 0, 
+              stock: Number(p.stock) || 0, 
               category: p.category, 
-              barcode: p.barcode, 
-              hasVariants: p.hasVariants || false,
-              variants: p.variants || [], 
-              isPack: p.isPack || false,
-              packItems: p.packItems || [],
+              barcode: p.barcode || '', 
+              description: p.description || '',
+              cost: Number(p.cost) || 0,
+              hasVariants: !!p.hasVariants,
+              variants: Array.isArray(p.variants) ? p.variants : [], 
+              isPack: !!p.isPack,
+              packItems: Array.isArray(p.packItems) ? p.packItems : [],
               store_id: storeId 
           });
       }
@@ -315,7 +325,8 @@ export const StorageService = {
 
   saveShift: async (s: CashShift) => {
     const storeId = await getStoreId();
-    await supabase.from('shifts').upsert({ ...s, store_id: storeId });
+    const { error } = await supabase.from('shifts').upsert({ ...s, store_id: storeId });
+    if (error) console.error("Error saving shift:", error);
   },
 
   getMovements: async (): Promise<CashMovement[]> => {
@@ -326,7 +337,8 @@ export const StorageService = {
 
   saveMovement: async (m: CashMovement) => {
     const storeId = await getStoreId();
-    await supabase.from('movements').insert({ ...m, store_id: storeId });
+    const { error } = await supabase.from('movements').insert({ ...m, store_id: storeId });
+    if (error) console.error("Error saving movement:", error);
   },
 
   getActiveShiftId: (): string | null => localStorage.getItem(KEYS.ACTIVE_SHIFT_ID),
@@ -345,7 +357,8 @@ export const StorageService = {
 
   saveSettings: async (settings: StoreSettings) => {
     const storeId = await getStoreId();
-    await supabase.from('stores').update({ settings }).eq('id', storeId);
+    const { error } = await supabase.from('stores').update({ settings }).eq('id', storeId);
+    if (error) console.error("Error saving settings:", error);
   },
 
   resetDemoData: async () => {
