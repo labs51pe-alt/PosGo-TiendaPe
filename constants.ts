@@ -13,44 +13,23 @@ export const DEFAULT_SETTINGS: StoreSettings = {
 
 export const MOCK_PRODUCTS = [
   // BEBIDAS
-  { id: '1', name: 'Inca Kola 600ml', price: 3.50, category: 'Bebidas', stock: 45, barcode: '77501000' },
-  { id: '2', name: 'Coca Cola 600ml', price: 3.50, category: 'Bebidas', stock: 50, barcode: '77501001' },
-  { id: '3', name: 'Agua San Mateo 1L', price: 2.50, category: 'Bebidas', stock: 24, barcode: '77502000' },
-  { id: '4', name: 'Cerveza Pilsen 650ml', price: 7.00, category: 'Bebidas', stock: 120, barcode: '77503000' },
-  { id: '5', name: 'Sporade Tropical', price: 2.80, category: 'Bebidas', stock: 15, barcode: '77504000' },
+  { id: '1', name: 'Inca Kola 600ml', price: 3.50, category: 'Bebidas', stock: 45, barcode: '77501000', images: ['https://images.unsplash.com/photo-1622483767028-3f66f32aef97?auto=format&fit=crop&w=400&q=80'] },
+  { id: '2', name: 'Coca Cola 600ml', price: 3.50, category: 'Bebidas', stock: 50, barcode: '77501001', images: ['https://images.unsplash.com/photo-1554866585-cd94860890b7?auto=format&fit=crop&w=400&q=80'] },
+  { id: '3', name: 'Agua San Mateo 1L', price: 2.50, category: 'Bebidas', stock: 24, barcode: '77502000', images: ['https://images.unsplash.com/photo-1548839140-29a749e1cf4d?auto=format&fit=crop&w=400&q=80'] },
+  { id: '4', name: 'Cerveza Pilsen 650ml', price: 7.00, category: 'Bebidas', stock: 120, barcode: '77503000', images: ['https://images.unsplash.com/photo-1535958636474-b021ee887b13?auto=format&fit=crop&w=400&q=80'] },
+  { id: '5', name: 'Sporade Tropical', price: 2.80, category: 'Bebidas', stock: 15, barcode: '77504000', images: ['https://images.unsplash.com/photo-1543258103-a62bdc069871?auto=format&fit=crop&w=400&q=80'] },
   
   // SNACKS
-  { id: '6', name: 'Papas Lays Clásicas', price: 2.00, category: 'Snacks', stock: 30, barcode: '75010001' },
-  { id: '7', name: 'Doritos Queso', price: 2.20, category: 'Snacks', stock: 25, barcode: '75010002' },
-  { id: '8', name: 'Galleta Oreo Paquete', price: 1.50, category: 'Snacks', stock: 60, barcode: '76223000' },
-  { id: '9', name: 'Chocman', price: 1.20, category: 'Snacks', stock: 40, barcode: '77505000' },
+  { id: '6', name: 'Papas Lays Clásicas', price: 2.00, category: 'Snacks', stock: 30, barcode: '75010001', images: ['https://images.unsplash.com/photo-1566478989037-eec170784d0b?auto=format&fit=crop&w=400&q=80'] },
+  { id: '7', name: 'Doritos Queso', price: 2.20, category: 'Snacks', stock: 25, barcode: '75010002', images: ['https://images.unsplash.com/photo-1600952841320-db93a3821732?auto=format&fit=crop&w=400&q=80'] },
+  { id: '8', name: 'Galleta Oreo Paquete', price: 1.50, category: 'Snacks', stock: 60, barcode: '76223000', images: ['https://images.unsplash.com/photo-1558961363-fa8fdf82db35?auto=format&fit=crop&w=400&q=80'] },
+  { id: '9', name: 'Chocman', price: 1.20, category: 'Snacks', stock: 40, barcode: '77505000', images: ['https://images.unsplash.com/photo-1559181567-c3190cb9959b?auto=format&fit=crop&w=400&q=80'] },
 
   // ALIMENTOS
-  { id: '10', name: 'Arroz Costeño 750g', price: 4.80, category: 'Alimentos', stock: 20, barcode: '77506000' },
-  { id: '11', name: 'Aceite Primor 1L', price: 11.50, category: 'Alimentos', stock: 18, barcode: '77507000' },
-  { id: '12', name: 'Leche Gloria Azul', price: 4.20, category: 'Alimentos', stock: 36, barcode: '77508000' },
-  { id: '13', name: 'Atún Florida Filete', price: 6.50, category: 'Alimentos', stock: 50, barcode: '77509000' },
-
-  // LIMPIEZA & CUIDADO
-  { id: '14', name: 'Detergente Bolivar 900g', price: 14.50, category: 'Limpieza', stock: 12, barcode: '77510000' },
-  { id: '15', name: 'Papel Hig. Suave (pack 4)', price: 6.00, category: 'Limpieza', stock: 15, barcode: '77511000' },
-  { id: '16', name: 'Shampoo H&S 400ml', price: 18.90, category: 'Cuidado Personal', stock: 8, barcode: '77512000' },
-
-  // PRODUCTO CON VARIANTES (DEMO)
-  { 
-      id: '17', 
-      name: 'Panetón D\'Onofrio', 
-      price: 28.00, 
-      category: 'Alimentos', 
-      stock: 30, 
-      barcode: '77513000',
-      hasVariants: true,
-      variants: [
-          { id: 'v1', name: 'Caja', price: 28.00, stock: 20 },
-          { id: 'v2', name: 'Lata', price: 32.00, stock: 5 },
-          { id: 'v3', name: 'Bolsa (Chocoton)', price: 29.50, stock: 5 }
-      ]
-  }
+  { id: '10', name: 'Arroz Costeño 750g', price: 4.80, category: 'Alimentos', stock: 20, barcode: '77506000', images: ['https://images.unsplash.com/photo-1586201375761-83865001e31c?auto=format&fit=crop&w=400&q=80'] },
+  { id: '11', name: 'Aceite Primor 1L', price: 11.50, category: 'Alimentos', stock: 18, barcode: '77507000', images: ['https://images.unsplash.com/photo-1474979266404-7eaacbcd87c5?auto=format&fit=crop&w=400&q=80'] },
+  { id: '12', name: 'Leche Gloria Azul', price: 4.20, category: 'Alimentos', stock: 36, barcode: '77508000', images: ['https://images.unsplash.com/photo-1563636619-e910fdf90597?auto=format&fit=crop&w=400&q=80'] },
+  { id: '13', name: 'Atún Florida Filete', price: 6.50, category: 'Alimentos', stock: 50, barcode: '77509000', images: ['https://images.unsplash.com/photo-1599059021750-8471273894b6?auto=format&fit=crop&w=400&q=80'] },
 ];
 
 export const COUNTRIES = [

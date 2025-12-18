@@ -1,3 +1,4 @@
+
 import { UserProfile, Product, Transaction, Purchase, StoreSettings, Customer, Supplier, CashShift, CashMovement, Lead, Store } from '../types';
 import { MOCK_PRODUCTS, DEFAULT_SETTINGS } from '../constants';
 import { supabase } from './supabase';
@@ -23,7 +24,7 @@ const isDemo = () => {
     const session = localStorage.getItem(KEYS.SESSION);
     if (!session) return true;
     const user = JSON.parse(session);
-    return user.id === 'test-user-demo'; 
+    return user.id === 'test-user-demo' || user.email?.endsWith('@demo.posgo'); 
 };
 
 // Cache for store_id
@@ -91,8 +92,13 @@ export const StorageService = {
 
   // === GESTIÓN DE PLANTILLA DEMO (CLOUD) ===
   
-  // 1. Obtener Plantilla
-  getDemoTemplate: async (): Promise<Product[]> => {
+  // 1. Obtener Plantilla (Forzando Cloud si es posible)
+  getDemoTemplate: async (forceCloud = true): Promise<Product[]> => {
+      if (!forceCloud) {
+          const cached = localStorage.getItem(KEYS.DEMO_TEMPLATE);
+          if (cached) return JSON.parse(cached);
+      }
+
       try {
           const { data: productsData, error: prodError } = await supabase
               .from('products')
@@ -112,7 +118,6 @@ export const StorageService = {
                           .map((img: any) => img.image_data)
                       : [];
 
-                  // Handle variants json
                   let variants = [];
                   if (typeof p.variants === 'string') {
                       try { variants = JSON.parse(p.variants); } catch(e) {}
@@ -137,7 +142,7 @@ export const StorageService = {
               return mapped;
           }
       } catch (e) {
-          console.warn("Error fetching cloud template, falling back to local/mock.", e);
+          console.warn("Error fetching cloud template:", e);
       }
 
       const cached = localStorage.getItem(KEYS.DEMO_TEMPLATE);
@@ -146,42 +151,13 @@ export const StorageService = {
 
   // 2. Guardar Producto en Plantilla (Super Admin)
   saveDemoProductToTemplate: async (product: Product): Promise<{ success: boolean; error?: string }> => {
-      
-      // Update Local Cache First (Optimistic)
       try {
-          const currentTemplate = await StorageService.getDemoTemplate();
-          const index = currentTemplate.findIndex(p => p.id === product.id);
-          let newTemplate;
-          if (index >= 0) newTemplate = currentTemplate.map(p => p.id === product.id ? product : p);
-          else newTemplate = [...currentTemplate, product];
-          localStorage.setItem(KEYS.DEMO_TEMPLATE, JSON.stringify(newTemplate));
-      } catch (e) {}
+          // 1. VERIFY SESSION
+          const { data: { session } } = await supabase.auth.getSession();
+          if (!session) return { success: false, error: "⚠️ No hay sesión Cloud activa." };
 
-      try {
-          console.log("Saving demo product to cloud...", product.id);
-
-          // 1. VERIFY SESSION FIRST
-          const { data: { session }, error: sessionError } = await supabase.auth.getSession();
-          if (sessionError || !session) {
-              return { success: false, error: "⚠️ No hay sesión de Supabase activa. Debes iniciar sesión como Super Admin en modo 'Cloud' para editar la plantilla global." };
-          }
-
-          // 2. UPSERT STORE (If needed)
-          // Intenta crear la tienda '0000...' si no existe.
-          const { error: storeUpsertError } = await supabase.from('stores').upsert({
-              id: DEMO_TEMPLATE_ID,
-              settings: DEFAULT_SETTINGS,
-              created_at: new Date().toISOString()
-          });
-          
-          if (storeUpsertError) {
-             if (storeUpsertError.message.includes('row-level security')) {
-                 console.error("Store Upsert RLS Blocked:", storeUpsertError);
-                 // No retornamos error aquí, intentamos seguir. Si falla el producto por FK, ahí avisamos.
-             } else {
-                 console.warn("Store upsert warning:", storeUpsertError.message);
-             }
-          }
+          // 2. ENSURE STORE EXISTS
+          await supabase.from('stores').upsert({ id: DEMO_TEMPLATE_ID, settings: DEFAULT_SETTINGS });
 
           // 3. SAVE PRODUCT
           const payload: any = {
@@ -195,66 +171,47 @@ export const StorageService = {
               store_id: DEMO_TEMPLATE_ID
           };
           
-          // CRITICAL: Usamos .select() para confirmar que realmente se escribió
           const { data: savedData, error: prodError } = await supabase.from('products').upsert(payload).select();
           
-          if (prodError) {
-              if (prodError.message.includes('row-level security')) {
-                  return { success: true, error: "⚠️ Error Permisos (RLS) en Productos. Usa el botón 'Configurar Permisos'." };
-              }
-              if (prodError.message.includes('foreign key constraint')) {
-                  return { success: true, error: "⚠️ Error Crítico: La 'Tienda Plantilla' (ID 0000...) no existe en la base de datos y no se pudo crear. Asegúrate de ejecutar el bloque SQL completo." };
-              }
-              throw prodError;
-          }
-
-          // EXTRA CHECK: Si no hay error pero tampoco datos devueltos, RLS bloqueó silenciosamente
+          if (prodError) throw prodError;
           if (!savedData || savedData.length === 0) {
-              return { success: true, error: "⚠️ Guardado Fallido: Supabase no devolvió datos (Bloqueo Silencioso RLS). Ejecuta el SQL de 'Configurar Permisos'." };
+              return { success: false, error: "⚠️ Bloqueo RLS: Los cambios no se persistieron en la nube." };
           }
 
           // 4. SAVE IMAGES
-          if (product.images) {
-              await supabase.from('product_images').delete().eq('product_id', product.id).eq('store_id', DEMO_TEMPLATE_ID);
-              if (product.images.length > 0) {
-                  const imageInserts = product.images.map(imgData => ({
-                      product_id: product.id,
-                      image_data: imgData, 
-                      store_id: DEMO_TEMPLATE_ID
-                  }));
-                  
-                  const { error: imgError } = await supabase.from('product_images').insert(imageInserts);
-                  if (imgError && imgError.message.includes('row-level security')) {
-                      return { success: true, error: "⚠️ Producto guardado, pero IMÁGENES fallaron por RLS. Configura los permisos." };
-                  }
-              }
+          await supabase.from('product_images').delete().eq('product_id', product.id).eq('store_id', DEMO_TEMPLATE_ID);
+          if (product.images && product.images.length > 0) {
+              const imageInserts = product.images.map(imgData => ({
+                  product_id: product.id,
+                  image_data: imgData, 
+                  store_id: DEMO_TEMPLATE_ID
+              }));
+              const { error: imgError } = await supabase.from('product_images').insert(imageInserts);
+              if (imgError) console.warn("Image save error:", imgError.message);
           }
 
-          return { success: true };
+          // Force local cache update of template
+          await StorageService.getDemoTemplate(true);
 
+          return { success: true };
       } catch (err: any) {
-          console.error("Error saving to cloud template:", err);
-          return { success: true, error: "Guardado LOCALMENTE (Error Nube: " + (err.message || 'Unknown') + ")" };
+          console.error("Cloud template error:", err);
+          return { success: false, error: err.message || "Error desconocido" };
       }
   },
 
   deleteDemoProduct: async (productId: string) => {
-      // Local
-      const list = JSON.parse(localStorage.getItem(KEYS.DEMO_TEMPLATE) || '[]');
-      const updated = list.filter((p: Product) => p.id !== productId);
-      localStorage.setItem(KEYS.DEMO_TEMPLATE, JSON.stringify(updated));
-
-      // Cloud
       await supabase.from('product_images').delete().eq('product_id', productId).eq('store_id', DEMO_TEMPLATE_ID);
       await supabase.from('products').delete().eq('id', productId).eq('store_id', DEMO_TEMPLATE_ID);
+      await StorageService.getDemoTemplate(true);
   },
 
-  // === PRODUCTOS (MODO NORMAL) ===
+  // === PRODUCTOS (MODO NORMAL / DEMO) ===
   getProducts: async (): Promise<Product[]> => {
     if (isDemo()) {
         const s = localStorage.getItem(KEYS.PRODUCTS);
         if (!s) {
-            const template = await StorageService.getDemoTemplate();
+            const template = await StorageService.getDemoTemplate(true);
             localStorage.setItem(KEYS.PRODUCTS, JSON.stringify(template));
             return template;
         }
@@ -262,35 +219,13 @@ export const StorageService = {
     } else {
         const storeId = await getStoreId();
         if(!storeId) return []; 
-
-        const { data: productsData, error: productsError } = await supabase.from('products').select('*').eq('store_id', storeId);
-        if (productsError || !productsData) return [];
-
+        const { data: productsData } = await supabase.from('products').select('*').eq('store_id', storeId);
+        if (!productsData) return [];
         const { data: imagesData } = await supabase.from('product_images').select('*').eq('store_id', storeId);
-        
         return productsData.map((p: any) => {
-            const prodImages = imagesData 
-                ? imagesData.filter((img: any) => img.product_id === p.id).map((img: any) => img.image_data)
-                : [];
-
-            let variants = [];
-            if (typeof p.variants === 'string') {
-                try { variants = JSON.parse(p.variants); } catch(e) {}
-            } else if (Array.isArray(p.variants)) {
-                variants = p.variants;
-            }
-
-            return {
-                id: p.id,
-                name: p.name,
-                price: Number(p.price),
-                category: p.category,
-                stock: Number(p.stock),
-                barcode: p.barcode,
-                hasVariants: variants.length > 0,
-                variants: variants,
-                images: prodImages 
-            };
+            const prodImages = imagesData ? imagesData.filter((img: any) => img.product_id === p.id).map((img: any) => img.image_data) : [];
+            let variants = Array.isArray(p.variants) ? p.variants : [];
+            return { id: p.id, name: p.name, price: Number(p.price), category: p.category, stock: Number(p.stock), barcode: p.barcode, hasVariants: variants.length > 0, variants: variants, images: prodImages };
         });
     }
   },
@@ -299,38 +234,16 @@ export const StorageService = {
       if (isDemo()) {
           const products = JSON.parse(localStorage.getItem(KEYS.PRODUCTS) || '[]');
           const index = products.findIndex((p: any) => p.id === product.id);
-          let updatedProducts;
-          if (index >= 0) {
-              updatedProducts = products.map((p: any) => p.id === product.id ? product : p);
-          } else {
-              updatedProducts = [...products, product];
-          }
-          localStorage.setItem(KEYS.PRODUCTS, JSON.stringify(updatedProducts));
+          let updated = index >= 0 ? products.map((p: any) => p.id === product.id ? product : p) : [...products, product];
+          localStorage.setItem(KEYS.PRODUCTS, JSON.stringify(updated));
       } else {
           const storeId = await getStoreId();
           if (!storeId) return;
-
-          const payload: any = {
-                id: product.id,
-                name: product.name,
-                price: product.price,
-                stock: product.stock,
-                category: product.category,
-                barcode: product.barcode,
-                variants: product.variants || [],
-                store_id: storeId
-          };
-          
-          await supabase.from('products').upsert(payload);
-
+          await supabase.from('products').upsert({ id: product.id, name: product.name, price: product.price, stock: product.stock, category: product.category, barcode: product.barcode, variants: product.variants || [], store_id: storeId });
           if (product.images) {
               await supabase.from('product_images').delete().eq('product_id', product.id).eq('store_id', storeId);
               if (product.images.length > 0) {
-                  const imageInserts = product.images.map(imgData => ({
-                      product_id: product.id,
-                      image_data: imgData,
-                      store_id: storeId
-                  }));
+                  const imageInserts = product.images.map(imgData => ({ product_id: product.id, image_data: imgData, store_id: storeId }));
                   await supabase.from('product_images').insert(imageInserts);
               }
           }
@@ -343,232 +256,171 @@ export const StorageService = {
     } else {
         const storeId = await getStoreId();
         if (!storeId) return;
-
         for (const p of products) {
-            const payload: any = {
-                id: p.id,
-                name: p.name,
-                price: p.price,
-                stock: p.stock,
-                category: p.category,
-                barcode: p.barcode,
-                variants: p.variants || [],
-                store_id: storeId
-            };
-            await supabase.from('products').upsert(payload);
+            await supabase.from('products').upsert({ id: p.id, name: p.name, price: p.price, stock: p.stock, category: p.category, barcode: p.barcode, variants: p.variants || [], store_id: storeId });
         }
     }
   },
 
-  // === TRANSACTIONS & OTHERS ===
-  getTransactions: async (): Promise<Transaction[]> => {
-    if (isDemo()) {
-        const s = localStorage.getItem(KEYS.TRANSACTIONS);
-        return s ? JSON.parse(s) : [];
-    } else {
-        const storeId = await getStoreId();
-        if(!storeId) return [];
-        const { data, error } = await supabase.from('transactions').select('*').eq('store_id', storeId).order('date', { ascending: false });
-        if (error || !data) return [];
-        return data.map((t: any) => ({
-            id: t.id,
-            date: t.date,
-            items: typeof t.items === 'string' ? JSON.parse(t.items) : t.items,
-            subtotal: Number(t.subtotal),
-            tax: Number(t.tax),
-            discount: Number(t.discount),
-            total: Number(t.total),
-            paymentMethod: t.payment_method,
-            payments: typeof t.payments === 'string' ? JSON.parse(t.payments) : t.payments,
-            profit: Number(t.profit),
-            shiftId: t.shift_id
-        }));
-    }
-  },
-  saveTransaction: async (transaction: Transaction) => {
-    if (isDemo()) {
-        const currentString = localStorage.getItem(KEYS.TRANSACTIONS);
-        const current = currentString ? JSON.parse(currentString) : [];
-        localStorage.setItem(KEYS.TRANSACTIONS, JSON.stringify([transaction, ...current]));
-    } else {
-        const storeId = await getStoreId();
-        if (!storeId) return;
-        const { error } = await supabase.from('transactions').insert({
-            id: transaction.id,
-            shift_id: transaction.shiftId,
-            store_id: storeId,
-            total: transaction.total,
-            subtotal: transaction.subtotal,
-            tax: transaction.tax,
-            discount: transaction.discount,
-            items: transaction.items,
-            payments: transaction.payments,
-            payment_method: transaction.paymentMethod,
-            date: transaction.date
-        });
-        if (error) console.error("Error saving transaction", error);
-    }
-  },
-
+  // === PURCHASES ===
+  // Fix: Added getPurchases
   getPurchases: async (): Promise<Purchase[]> => {
-    const s = localStorage.getItem(KEYS.PURCHASES);
-    return s ? JSON.parse(s) : [];
+    if (isDemo()) return JSON.parse(localStorage.getItem(KEYS.PURCHASES) || '[]');
+    const storeId = await getStoreId();
+    if (!storeId) return [];
+    const { data } = await supabase.from('purchases').select('*').eq('store_id', storeId).order('date', { ascending: false });
+    return (data || []).map((p: any) => ({ 
+      ...p, 
+      supplierId: p.supplier_id,
+      items: typeof p.items === 'string' ? JSON.parse(p.items) : p.items 
+    }));
   },
+
+  // Fix: Added savePurchase
   savePurchase: async (purchase: Purchase) => {
-    const s = localStorage.getItem(KEYS.PURCHASES);
-    const current = s ? JSON.parse(s) : [];
-    localStorage.setItem(KEYS.PURCHASES, JSON.stringify([purchase, ...current]));
-  },
-
-  getSettings: async (): Promise<StoreSettings> => {
     if (isDemo()) {
-        const s = localStorage.getItem(KEYS.SETTINGS);
-        return s ? JSON.parse(s) : DEFAULT_SETTINGS;
+      const current = JSON.parse(localStorage.getItem(KEYS.PURCHASES) || '[]');
+      localStorage.setItem(KEYS.PURCHASES, JSON.stringify([purchase, ...current]));
     } else {
-        const storeId = await getStoreId();
-        if (!storeId) return DEFAULT_SETTINGS;
-        const { data } = await supabase.from('stores').select('settings').eq('id', storeId).single();
-        return data?.settings || DEFAULT_SETTINGS;
-    }
-  },
-  saveSettings: async (settings: StoreSettings) => {
-    if (isDemo()) {
-        localStorage.setItem(KEYS.SETTINGS, JSON.stringify(settings));
-    } else {
-        const storeId = await getStoreId();
-        if (storeId) {
-             await supabase.from('stores').update({ settings }).eq('id', storeId);
-        }
+      const storeId = await getStoreId();
+      if (storeId) await supabase.from('purchases').insert({ 
+        id: purchase.id,
+        date: purchase.date,
+        supplier_id: purchase.supplierId,
+        total: purchase.total,
+        items: purchase.items,
+        store_id: storeId 
+      });
     }
   },
 
+  // === CUSTOMERS & SUPPLIERS ===
+  // Fix: Added getCustomers
   getCustomers: async (): Promise<Customer[]> => {
-    if (isDemo()) {
-        const s = localStorage.getItem(KEYS.CUSTOMERS);
-        return s ? JSON.parse(s) : [];
-    } else {
-        const storeId = await getStoreId();
-        if(!storeId) return [];
-        const { data } = await supabase.from('customers').select('*').eq('store_id', storeId);
-        return data || [];
-    }
+    if (isDemo()) return JSON.parse(localStorage.getItem(KEYS.CUSTOMERS) || '[]');
+    const storeId = await getStoreId();
+    if (!storeId) return [];
+    const { data } = await supabase.from('customers').select('*').eq('store_id', storeId);
+    return data || [];
+  },
+
+  // Fix: Added getSuppliers
+  getSuppliers: async (): Promise<Supplier[]> => {
+    if (isDemo()) return JSON.parse(localStorage.getItem(KEYS.SUPPLIERS) || '[]');
+    const storeId = await getStoreId();
+    if (!storeId) return [];
+    const { data } = await supabase.from('suppliers').select('*').eq('store_id', storeId);
+    return data || [];
   },
   
-  getSuppliers: (): Supplier[] => {
-    const s = localStorage.getItem(KEYS.SUPPLIERS);
-    return s ? JSON.parse(s) : [];
-  },
-  saveSupplier: (supplier: Supplier) => {
-    const s = localStorage.getItem(KEYS.SUPPLIERS);
-    const current = s ? JSON.parse(s) : [];
-    localStorage.setItem(KEYS.SUPPLIERS, JSON.stringify([...current, supplier]));
-  },
-
-  getShifts: async (): Promise<CashShift[]> => {
+  // Fix: Added saveSupplier
+  saveSupplier: async (supplier: Supplier) => {
     if (isDemo()) {
-        const s = localStorage.getItem(KEYS.SHIFTS);
-        return s ? JSON.parse(s) : [];
+        const current = JSON.parse(localStorage.getItem(KEYS.SUPPLIERS) || '[]');
+        localStorage.setItem(KEYS.SUPPLIERS, JSON.stringify([...current, supplier]));
     } else {
         const storeId = await getStoreId();
-        if(!storeId) return [];
-        const { data } = await supabase.from('cash_shifts').select('*').eq('store_id', storeId).order('created_at', { ascending: false });
-        if (!data) return [];
-        return data.map((s: any) => ({
-            id: s.id,
-            startTime: s.start_time,
-            endTime: s.end_time,
-            startAmount: Number(s.start_amount),
-            endAmount: Number(s.end_amount),
-            status: s.status,
-            totalSalesCash: Number(s.total_sales_cash),
-            totalSalesDigital: Number(s.total_sales_digital)
-        }));
+        if (storeId) await supabase.from('suppliers').insert({ ...supplier, store_id: storeId });
     }
+  },
+
+  // === TRANSACTIONS ===
+  getTransactions: async (): Promise<Transaction[]> => {
+    if (isDemo()) return JSON.parse(localStorage.getItem(KEYS.TRANSACTIONS) || '[]');
+    const storeId = await getStoreId();
+    if(!storeId) return [];
+    const { data } = await supabase.from('transactions').select('*').eq('store_id', storeId).order('date', { ascending: false });
+    return (data || []).map((t: any) => ({ ...t, items: typeof t.items === 'string' ? JSON.parse(t.items) : t.items, payments: typeof t.payments === 'string' ? JSON.parse(t.payments) : t.payments }));
+  },
+  saveTransaction: async (t: Transaction) => {
+    if (isDemo()) {
+        const current = JSON.parse(localStorage.getItem(KEYS.TRANSACTIONS) || '[]');
+        localStorage.setItem(KEYS.TRANSACTIONS, JSON.stringify([t, ...current]));
+    } else {
+        const storeId = await getStoreId();
+        if (storeId) await supabase.from('transactions').insert({ ...t, store_id: storeId });
+    }
+  },
+
+  // === SETTINGS ===
+  getSettings: async (): Promise<StoreSettings> => {
+    if (isDemo()) return JSON.parse(localStorage.getItem(KEYS.SETTINGS) || JSON.stringify(DEFAULT_SETTINGS));
+    const storeId = await getStoreId();
+    const { data } = await supabase.from('stores').select('settings').eq('id', storeId).single();
+    return data?.settings || DEFAULT_SETTINGS;
+  },
+  saveSettings: async (settings: StoreSettings) => {
+    if (isDemo()) localStorage.setItem(KEYS.SETTINGS, JSON.stringify(settings));
+    else {
+        const storeId = await getStoreId();
+        if (storeId) await supabase.from('stores').update({ settings }).eq('id', storeId);
+    }
+  },
+
+  // === SHIFTS & MOVEMENTS ===
+  getShifts: async (): Promise<CashShift[]> => {
+    if (isDemo()) return JSON.parse(localStorage.getItem(KEYS.SHIFTS) || '[]');
+    const storeId = await getStoreId();
+    const { data } = await supabase.from('cash_shifts').select('*').eq('store_id', storeId).order('created_at', { ascending: false });
+    return (data || []).map((s: any) => ({ ...s, startTime: s.start_time, endTime: s.end_time, startAmount: Number(s.start_amount), endAmount: Number(s.end_amount), totalSalesCash: Number(s.total_sales_cash), totalSalesDigital: Number(s.total_sales_digital) }));
   },
   saveShift: async (shift: CashShift) => {
     if (isDemo()) {
-        const s = localStorage.getItem(KEYS.SHIFTS);
-        const shifts = s ? JSON.parse(s) : [];
+        const shifts = JSON.parse(localStorage.getItem(KEYS.SHIFTS) || '[]');
         const idx = shifts.findIndex((x: any) => x.id === shift.id);
-        if (idx >= 0) shifts[idx] = shift;
-        else shifts.unshift(shift);
+        if (idx >= 0) shifts[idx] = shift; else shifts.unshift(shift);
         localStorage.setItem(KEYS.SHIFTS, JSON.stringify(shifts));
     } else {
          const storeId = await getStoreId();
-         if (!storeId) return;
-         const payload: any = {
-             id: shift.id,
-             start_time: shift.startTime,
-             end_time: shift.endTime,
-             start_amount: shift.startAmount,
-             end_amount: shift.endAmount,
-             status: shift.status,
-             total_sales_cash: shift.totalSalesCash,
-             total_sales_digital: shift.totalSalesDigital,
-             store_id: storeId
-         };
-         await supabase.from('cash_shifts').upsert(payload);
+         if (storeId) await supabase.from('cash_shifts').upsert({ id: shift.id, start_time: shift.startTime, end_time: shift.endTime, start_amount: shift.startAmount, end_amount: shift.endAmount, status: shift.status, total_sales_cash: shift.totalSalesCash, total_sales_digital: shift.totalSalesDigital, store_id: storeId });
     }
   },
-  
+
+  // Fix: Added getMovements
   getMovements: async (): Promise<CashMovement[]> => {
-      if (isDemo()) {
-          const s = localStorage.getItem(KEYS.MOVEMENTS);
-          return s ? JSON.parse(s) : [];
-      } else {
-           const storeId = await getStoreId();
-           if(!storeId) return [];
-           const { data } = await supabase.from('cash_movements').select('*').eq('store_id', storeId);
-           if (!data) return [];
-           return data.map((m: any) => ({
-               id: m.id,
-               shiftId: m.shift_id,
-               type: m.type,
-               amount: Number(m.amount),
-               description: m.description,
-               timestamp: m.timestamp
-           }));
-      }
-  },
-  saveMovement: async (movement: CashMovement) => {
-      if (isDemo()) {
-          const s = localStorage.getItem(KEYS.MOVEMENTS);
-          const moves = s ? JSON.parse(s) : [];
-          localStorage.setItem(KEYS.MOVEMENTS, JSON.stringify([...moves, movement]));
-      } else {
-          const storeId = await getStoreId();
-          if (!storeId) return;
-          await supabase.from('cash_movements').insert({
-              id: movement.id,
-              shift_id: movement.shiftId,
-              store_id: storeId,
-              type: movement.type,
-              amount: movement.amount,
-              description: movement.description,
-              timestamp: movement.timestamp
-          });
-      }
+    if (isDemo()) return JSON.parse(localStorage.getItem(KEYS.MOVEMENTS) || '[]');
+    const storeId = await getStoreId();
+    if (!storeId) return [];
+    const { data } = await supabase.from('cash_movements').select('*').eq('store_id', storeId).order('timestamp', { ascending: false });
+    return (data || []).map((m: any) => ({
+      ...m,
+      shiftId: m.shift_id
+    }));
   },
 
-  getActiveShiftId: (): string | null => {
-      return localStorage.getItem(KEYS.ACTIVE_SHIFT_ID);
+  // Fix: Added saveMovement
+  saveMovement: async (move: CashMovement) => {
+    if (isDemo()) {
+      const current = JSON.parse(localStorage.getItem(KEYS.MOVEMENTS) || '[]');
+      localStorage.setItem(KEYS.MOVEMENTS, JSON.stringify([...current, move]));
+    } else {
+      const storeId = await getStoreId();
+      if (storeId) await supabase.from('cash_movements').insert({ 
+        id: move.id,
+        shift_id: move.shiftId,
+        type: move.type,
+        amount: move.amount,
+        description: move.description,
+        timestamp: move.timestamp,
+        store_id: storeId 
+      });
+    }
   },
-  setActiveShiftId: (id: string | null) => {
-      if(id) localStorage.setItem(KEYS.ACTIVE_SHIFT_ID, id);
-      else localStorage.removeItem(KEYS.ACTIVE_SHIFT_ID);
-  },
+
+  getActiveShiftId: () => localStorage.getItem(KEYS.ACTIVE_SHIFT_ID),
+  setActiveShiftId: (id: string | null) => id ? localStorage.setItem(KEYS.ACTIVE_SHIFT_ID, id) : localStorage.removeItem(KEYS.ACTIVE_SHIFT_ID),
 
   resetDemoData: async () => {
-      const template = await StorageService.getDemoTemplate();
+      const template = await StorageService.getDemoTemplate(true);
       localStorage.setItem(KEYS.PRODUCTS, JSON.stringify(template));
-      
       localStorage.setItem(KEYS.TRANSACTIONS, JSON.stringify([]));
-      localStorage.setItem(KEYS.PURCHASES, JSON.stringify([]));
       localStorage.setItem(KEYS.SHIFTS, JSON.stringify([]));
-      localStorage.setItem(KEYS.MOVEMENTS, JSON.stringify([]));
+      localStorage.setItem(KEYS.SETTINGS, JSON.stringify(DEFAULT_SETTINGS));
+      // Fix: Adding missing demo keys to reset
+      localStorage.setItem(KEYS.PURCHASES, JSON.stringify([]));
       localStorage.setItem(KEYS.CUSTOMERS, JSON.stringify([]));
       localStorage.setItem(KEYS.SUPPLIERS, JSON.stringify([]));
-      localStorage.setItem(KEYS.SETTINGS, JSON.stringify(DEFAULT_SETTINGS));
+      localStorage.setItem(KEYS.MOVEMENTS, JSON.stringify([]));
       localStorage.removeItem(KEYS.ACTIVE_SHIFT_ID);
   }
 };
