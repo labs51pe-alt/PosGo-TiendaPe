@@ -140,10 +140,8 @@ export interface Lead {
     status?: 'NEW' | 'CONTACTED';
 }
 
-// Added name property to Store interface to fix TypeScript error in SuperAdminView (s.name)
 export interface Store {
     id: string;
-    name?: string;
     created_at: string;
     settings: StoreSettings;
     owner_id?: string;
