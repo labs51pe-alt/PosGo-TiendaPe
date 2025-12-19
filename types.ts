@@ -18,7 +18,7 @@ export interface ProductVariant {
 
 export interface PackItem {
     productId: string;
-    productName: string; // Nombre guardado para visualización rápida
+    productName: string; 
     quantity: number;
 }
 
@@ -119,6 +119,7 @@ export interface Supplier {
 
 export interface PurchaseItem {
   productId: string;
+  productName?: string; // Para historial sin depender de si el producto existe luego
   quantity: number;
   cost: number;
 }
@@ -127,8 +128,12 @@ export interface Purchase {
   id: string;
   date: string;
   supplierId: string;
+  invoiceNumber?: string;
   total: number;
   items: PurchaseItem[];
+  status: 'PAID' | 'PENDING';
+  received: 'YES' | 'NO';
+  store_id?: string;
 }
 
 export interface Lead {
