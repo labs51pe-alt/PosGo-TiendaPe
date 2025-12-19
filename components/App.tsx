@@ -16,7 +16,7 @@ import { CashControlModal } from './CashControlModal';
 import { POSView } from './POSView';
 import { SuperAdminView } from './SuperAdminView';
 import { DEFAULT_SETTINGS, CATEGORIES } from '../constants';
-import { Save, Image as ImageIcon, Plus, Check, X, Trash2, Search, Package, CloudSync, Rocket, Sparkles } from 'lucide-react';
+import { Save, Image as ImageIcon, Plus, Check, X, Trash2, Search, Package, Rocket, Sparkles, RefreshCw } from 'lucide-react';
 
 const App: React.FC = () => {
   const [user, setUser] = useState<UserProfile | null>(null);
@@ -115,7 +115,6 @@ const App: React.FC = () => {
              setView(ViewState.POS);
              setProducts(await StorageService.getProducts());
         }
-        // Pequeño delay artificial para que el mensaje se aprecie si la conexión es muy rápida
         setTimeout(() => setLoading(false), 800);
     };
     initApp();
@@ -328,35 +327,31 @@ const App: React.FC = () => {
   if (loading || (user && view === null)) {
       return (
         <div className="h-screen flex flex-col items-center justify-center bg-white relative overflow-hidden">
-            {/* Luces de Fondo Dinámicas */}
             <div className="absolute top-[-10%] right-[-10%] w-[40%] h-[40%] bg-emerald-50 rounded-full blur-[100px] opacity-40 animate-pulse"></div>
             <div className="absolute bottom-[-10%] left-[-10%] w-[40%] h-[40%] bg-indigo-50 rounded-full blur-[100px] opacity-40 animate-pulse"></div>
 
             <div className="relative z-10 flex flex-col items-center">
-                {/* Logo con Animación de Rebote */}
-                <div className="w-24 h-24 bg-slate-900 rounded-[2.5rem] flex items-center justify-center shadow-[0_20px_50px_rgba(0,0,0,0.15)] animate-bounce mb-10 border border-white/20">
-                    <Rocket className="w-12 h-12 text-white fill-current" />
+                <div className="w-20 h-20 sm:w-24 sm:h-24 bg-slate-900 rounded-[2rem] sm:rounded-[2.5rem] flex items-center justify-center shadow-[0_20px_50px_rgba(0,0,0,0.15)] animate-bounce mb-8 sm:mb-10 border border-white/20">
+                    <Rocket className="w-10 h-10 sm:w-12 sm:h-12 text-white fill-current" />
                 </div>
 
-                {/* Mensaje Mágico */}
-                <div className="text-center space-y-4 mb-10 px-8">
+                <div className="text-center space-y-4 mb-8 sm:mb-10 px-8">
                     <div className="flex items-center justify-center gap-2 text-indigo-500 mb-1">
                         <Sparkles className="w-4 h-4 animate-spin-slow" />
-                        <span className="text-[10px] font-black uppercase tracking-[0.3em]">Cargando Experiencia</span>
+                        <span className="text-[9px] sm:text-[10px] font-black uppercase tracking-[0.3em]">Cargando Experiencia</span>
                         <Sparkles className="w-4 h-4 animate-spin-slow" />
                     </div>
-                    <h2 className="text-2xl font-black text-slate-800 tracking-tight max-w-sm">
+                    <h2 className="text-xl sm:text-2xl font-black text-slate-800 tracking-tight max-w-sm mx-auto">
                         Estamos preparando algo <span className="text-transparent bg-clip-text bg-gradient-to-r from-emerald-500 to-indigo-600">mágico</span> para ti y tu negocio...
                     </h2>
                 </div>
 
-                {/* Barra de Progreso Premium */}
-                <div className="w-64 h-2 bg-slate-100 rounded-full overflow-hidden shadow-inner relative">
+                <div className="w-48 sm:w-64 h-2 bg-slate-100 rounded-full overflow-hidden shadow-inner relative">
                     <div className="h-full bg-gradient-to-r from-emerald-400 via-emerald-500 to-indigo-500 animate-shimmer absolute inset-0" style={{ width: '100%' }}></div>
                     <div className="absolute inset-0 bg-gradient-to-r from-transparent via-white/30 to-transparent animate-shimmer"></div>
                 </div>
 
-                <p className="mt-8 text-slate-400 font-black text-[9px] tracking-[0.4em] uppercase opacity-60">Sincronizando con la Nube</p>
+                <p className="mt-6 sm:mt-8 text-slate-400 font-black text-[8px] sm:text-[9px] tracking-[0.4em] uppercase opacity-60">Sincronizando con la Nube</p>
             </div>
         </div>
       );
@@ -377,38 +372,38 @@ const App: React.FC = () => {
         </Layout>
 
         {isSyncing && (
-            <div className="fixed top-6 right-6 z-[250] bg-white border border-emerald-100 px-4 py-2 rounded-2xl shadow-xl flex items-center gap-3 animate-fade-in">
-                <div className="w-2 h-2 bg-emerald-500 rounded-full animate-ping"></div>
-                <span className="text-[10px] font-black text-slate-600 uppercase tracking-widest flex items-center gap-2">
+            <div className="fixed top-6 right-6 z-[250] bg-white border border-emerald-100 px-4 py-2 rounded-2xl shadow-xl flex items-center gap-3 animate-fade-in max-w-[calc(100%-3rem)]">
+                <div className="w-2 h-2 bg-emerald-500 rounded-full animate-ping shrink-0"></div>
+                <span className="text-[10px] font-black text-slate-600 uppercase tracking-widest flex items-center gap-2 truncate">
                     Sincronizando Venta...
                 </span>
             </div>
         )}
 
         {isProductModalOpen && currentProduct && (
-            <div className="fixed inset-0 bg-slate-900/60 backdrop-blur-sm z-[120] flex items-center justify-center p-4">
-                <div className="bg-white rounded-[2rem] shadow-2xl w-full max-w-2xl overflow-hidden max-h-[90vh] flex flex-col animate-fade-in-up">
-                    <div className="p-6 border-b border-slate-100 flex justify-between items-center bg-slate-50/50">
+            <div className="fixed inset-0 bg-slate-900/60 backdrop-blur-sm z-[120] flex items-end sm:items-center justify-center sm:p-4">
+                <div className="bg-white rounded-t-[2.5rem] sm:rounded-[2rem] shadow-2xl w-full max-w-2xl overflow-hidden max-h-[92vh] flex flex-col animate-fade-in-up">
+                    <div className="p-5 sm:p-6 border-b border-slate-100 flex justify-between items-center bg-slate-50/50">
                         <div>
-                            <h2 className="font-black text-xl text-slate-800">{currentProduct.id ? 'Editar Producto Cloud' : 'Nuevo Producto Cloud'}</h2>
-                            <span className="text-[10px] font-bold bg-indigo-100 text-indigo-700 px-2 py-0.5 rounded-md mt-1 inline-block uppercase">Catálogo Global Sincronizado</span>
+                            <h2 className="font-black text-lg sm:text-xl text-slate-800">{currentProduct.id ? 'Editar Producto' : 'Nuevo Producto'}</h2>
+                            <span className="text-[9px] sm:text-[10px] font-bold bg-indigo-100 text-indigo-700 px-2 py-0.5 rounded-md mt-1 inline-block uppercase">Catálogo Sincronizado</span>
                         </div>
-                        <button onClick={() => setIsProductModalOpen(false)} className="w-8 h-8 rounded-full bg-white border border-slate-200 flex items-center justify-center text-slate-400 hover:text-red-500 transition-colors">✕</button>
+                        <button onClick={() => setIsProductModalOpen(false)} className="w-10 h-10 rounded-full bg-white border border-slate-200 flex items-center justify-center text-slate-400 hover:text-red-500 transition-colors">✕</button>
                     </div>
                     
-                    <div className="p-8 overflow-y-auto custom-scrollbar space-y-6">
+                    <div className="p-6 sm:p-8 overflow-y-auto custom-scrollbar space-y-6">
                         <div>
                             <label className="block text-xs font-bold text-slate-400 uppercase tracking-wider mb-2">Imágenes (Máx 2)</label>
                             <div className="flex gap-4">
                                 {currentProduct.images?.map((img, i) => (
-                                    <div key={i} className="relative w-24 h-24 rounded-2xl overflow-hidden border border-slate-200 group">
+                                    <div key={i} className="relative w-20 h-20 sm:w-24 sm:h-24 rounded-2xl overflow-hidden border border-slate-200 group">
                                         <img src={img} className="w-full h-full object-cover" alt="preview" />
-                                        <button onClick={() => setCurrentProduct({...currentProduct, images: currentProduct.images?.filter((_,idx)=>idx!==i)})} className="absolute top-1 right-1 bg-white/90 p-1 rounded-full text-red-500 opacity-0 group-hover:opacity-100 transition-opacity"><X className="w-4 h-4"/></button>
+                                        <button onClick={() => setCurrentProduct({...currentProduct, images: currentProduct.images?.filter((_,idx)=>idx!==i)})} className="absolute top-1 right-1 bg-white/90 p-1 rounded-full text-red-500 opacity-0 sm:group-hover:opacity-100 transition-opacity"><X className="w-4 h-4"/></button>
                                     </div>
                                 ))}
                                 {(!currentProduct.images || currentProduct.images.length < 2) && (
-                                    <label className="w-24 h-24 rounded-2xl border-2 border-dashed border-slate-300 flex flex-col items-center justify-center text-slate-400 cursor-pointer hover:border-indigo-400 hover:bg-indigo-50 transition-all">
-                                        <ImageIcon className="w-6 h-6 mb-1"/><span className="text-[10px] font-bold">Subir</span>
+                                    <label className="w-20 h-20 sm:w-24 sm:h-24 rounded-2xl border-2 border-dashed border-slate-300 flex flex-col items-center justify-center text-slate-400 cursor-pointer hover:border-indigo-400 hover:bg-indigo-50 transition-all">
+                                        <ImageIcon className="w-6 h-6 mb-1"/><span className="text-[9px] font-bold">Subir</span>
                                         <input type="file" className="hidden" accept="image/*" onChange={handleImageUpload} />
                                     </label>
                                 )}
@@ -416,56 +411,56 @@ const App: React.FC = () => {
                         </div>
 
                         <div className="space-y-4">
-                            <div><label className="block text-xs font-bold text-slate-400 mb-1">Nombre</label><input className="w-full p-4 bg-slate-50 border border-slate-200 rounded-2xl font-bold text-lg outline-none focus:border-slate-800" value={currentProduct.name} onChange={e => setCurrentProduct({...currentProduct, name: e.target.value})} /></div>
-                            <div><label className="block text-xs font-bold text-slate-400 mb-1">Código de Barras</label><input className="w-full p-4 bg-slate-50 border border-slate-200 rounded-2xl font-bold outline-none" value={currentProduct.barcode || ''} onChange={e => setCurrentProduct({...currentProduct, barcode: e.target.value})} /></div>
+                            <div><label className="block text-[10px] font-bold text-slate-400 mb-1 uppercase">Nombre</label><input className="w-full p-4 bg-slate-50 border border-slate-200 rounded-2xl font-bold text-base sm:text-lg outline-none focus:border-slate-800" value={currentProduct.name} onChange={e => setCurrentProduct({...currentProduct, name: e.target.value})} /></div>
+                            <div><label className="block text-[10px] font-bold text-slate-400 mb-1 uppercase">Código</label><input className="w-full p-4 bg-slate-50 border border-slate-200 rounded-2xl font-bold outline-none" value={currentProduct.barcode || ''} onChange={e => setCurrentProduct({...currentProduct, barcode: e.target.value})} /></div>
                             <div className="grid grid-cols-2 gap-4">
-                                <div><label className="block text-xs font-bold text-slate-400 mb-1">Precio Venta</label><input type="number" className="w-full p-4 bg-slate-50 border border-slate-200 rounded-2xl font-bold outline-none" value={currentProduct.price} onChange={e => setCurrentProduct({...currentProduct, price: parseFloat(e.target.value) || 0})} /></div>
-                                <div><label className="block text-xs font-bold text-slate-400 mb-1">Stock Actual</label><input type="number" className="w-full p-4 bg-slate-50 border border-slate-200 rounded-2xl font-bold outline-none disabled:opacity-50" value={currentProduct.stock} onChange={e => setCurrentProduct({...currentProduct, stock: parseFloat(e.target.value) || 0})} disabled={currentProduct.hasVariants} /></div>
+                                <div><label className="block text-[10px] font-bold text-slate-400 mb-1 uppercase">Venta</label><input type="number" className="w-full p-4 bg-slate-50 border border-slate-200 rounded-2xl font-bold outline-none" value={currentProduct.price} onChange={e => setCurrentProduct({...currentProduct, price: parseFloat(e.target.value) || 0})} /></div>
+                                <div><label className="block text-[10px] font-bold text-slate-400 mb-1 uppercase">Stock</label><input type="number" className="w-full p-4 bg-slate-50 border border-slate-200 rounded-2xl font-bold outline-none disabled:opacity-50" value={currentProduct.stock} onChange={e => setCurrentProduct({...currentProduct, stock: parseFloat(e.target.value) || 0})} disabled={currentProduct.hasVariants} /></div>
                             </div>
                             <div>
-                                <label className="block text-xs font-bold text-slate-400 mb-1">Categoría</label>
+                                <label className="block text-[10px] font-bold text-slate-400 mb-1 uppercase">Categoría</label>
                                 <select className="w-full p-4 bg-slate-50 border border-slate-200 rounded-2xl font-bold outline-none" value={currentProduct.category} onChange={e => setCurrentProduct({...currentProduct, category: e.target.value})}>
                                     {CATEGORIES.map(cat => <option key={cat} value={cat}>{cat}</option>)}
                                 </select>
                             </div>
                             
                             <div className="grid grid-cols-2 gap-4 pt-2">
-                                <label className="flex items-center gap-3 p-4 border border-slate-200 rounded-2xl cursor-pointer hover:bg-slate-50 transition-colors">
+                                <label className="flex items-center gap-3 p-3 sm:p-4 border border-slate-200 rounded-2xl cursor-pointer hover:bg-slate-50 transition-colors">
                                     <div className={`w-6 h-6 rounded-lg border-2 flex items-center justify-center transition-colors ${currentProduct.hasVariants ? 'bg-indigo-600 border-indigo-600' : 'border-slate-300'}`}>
                                         {currentProduct.hasVariants && <Check className="w-4 h-4 text-white" />}
                                     </div>
                                     <input type="checkbox" className="hidden" checked={currentProduct.hasVariants || false} onChange={e => setCurrentProduct({...currentProduct, hasVariants: e.target.checked, isPack: false})} /> 
-                                    <span className="font-bold text-slate-700 text-sm">Variantes</span>
+                                    <span className="font-bold text-slate-700 text-[11px] sm:text-sm">Variantes</span>
                                 </label>
-                                <label className="flex items-center gap-3 p-4 border border-slate-200 rounded-2xl cursor-pointer hover:bg-slate-50 transition-colors">
+                                <label className="flex items-center gap-3 p-3 sm:p-4 border border-slate-200 rounded-2xl cursor-pointer hover:bg-slate-50 transition-colors">
                                     <div className={`w-6 h-6 rounded-lg border-2 flex items-center justify-center transition-colors ${currentProduct.isPack ? 'bg-amber-600 border-amber-600' : 'border-slate-300'}`}>
                                         {currentProduct.isPack && <Check className="w-4 h-4 text-white" />}
                                     </div>
                                     <input type="checkbox" className="hidden" checked={currentProduct.isPack || false} onChange={e => setCurrentProduct({...currentProduct, isPack: e.target.checked, hasVariants: false})} /> 
-                                    <span className="font-bold text-slate-700 text-sm">Combo / Pack</span>
+                                    <span className="font-bold text-slate-700 text-[11px] sm:text-sm">Combo / Pack</span>
                                 </label>
                             </div>
                             
                             {currentProduct.hasVariants && (
-                                <div className="bg-indigo-50/50 p-6 rounded-[1.5rem] border border-indigo-100">
-                                    <h4 className="font-bold text-indigo-800 mb-4 text-sm">Gestionar Variantes</h4>
-                                    <div className="flex gap-2 mb-4">
-                                        <input className="flex-[2] p-3 rounded-xl border border-slate-200 text-sm font-bold" placeholder="Ej. Grande" value={variantName} onChange={e => setVariantName(e.target.value)}/>
-                                        <input className="flex-1 p-3 rounded-xl border border-slate-200 text-sm font-bold" placeholder="Precio" type="number" value={variantPrice} onChange={e => setVariantPrice(e.target.value)}/>
-                                        <input className="w-20 p-3 rounded-xl border border-slate-200 text-sm font-bold" placeholder="Stock" type="number" value={variantStock} onChange={e => setVariantStock(e.target.value)}/>
+                                <div className="bg-indigo-50/50 p-5 sm:p-6 rounded-[1.5rem] border border-indigo-100">
+                                    <h4 className="font-bold text-indigo-800 mb-4 text-[11px] sm:text-sm uppercase tracking-wider">Gestionar Variantes</h4>
+                                    <div className="flex flex-wrap gap-2 mb-4">
+                                        <input className="flex-[2] p-3 rounded-xl border border-slate-200 text-xs sm:text-sm font-bold" placeholder="Ej. XL" value={variantName} onChange={e => setVariantName(e.target.value)}/>
+                                        <input className="flex-1 p-3 rounded-xl border border-slate-200 text-xs sm:text-sm font-bold" placeholder="Price" type="number" value={variantPrice} onChange={e => setVariantPrice(e.target.value)}/>
+                                        <input className="w-16 sm:w-20 p-3 rounded-xl border border-slate-200 text-xs sm:text-sm font-bold" placeholder="Stock" type="number" value={variantStock} onChange={e => setVariantStock(e.target.value)}/>
                                         <button onClick={() => { 
                                             if(!variantName) return;
                                             const newVar = { id: crypto.randomUUID(), name: variantName, price: parseFloat(variantPrice) || 0, stock: parseFloat(variantStock) || 0 }; 
                                             setCurrentProduct({ ...currentProduct, variants: [...(currentProduct.variants || []), newVar] }); 
                                             setVariantName(''); setVariantPrice(''); setVariantStock(''); 
-                                        }} className="bg-indigo-600 text-white p-3 rounded-xl hover:bg-indigo-700"><Plus className="w-5 h-5"/></button>
+                                        }} className="bg-indigo-600 text-white p-3 rounded-xl hover:bg-indigo-700 shrink-0"><Plus className="w-5 h-5"/></button>
                                     </div>
                                     <div className="space-y-2">
                                         {currentProduct.variants?.map((v, i) => (
                                             <div key={v.id} className="flex justify-between items-center p-3 bg-white rounded-xl border border-indigo-50 shadow-sm">
-                                                <span className="font-bold text-slate-700 text-sm">{v.name}</span>
+                                                <span className="font-bold text-slate-700 text-xs">{v.name}</span>
                                                 <div className="flex items-center gap-3">
-                                                    <div className="text-[10px] font-black bg-indigo-50 text-indigo-600 px-2 py-1 rounded-lg">S/{v.price.toFixed(2)} • {v.stock} un.</div>
+                                                    <div className="text-[9px] font-black bg-indigo-50 text-indigo-600 px-2 py-1 rounded-lg">S/{v.price.toFixed(2)} • {v.stock} un.</div>
                                                     <button onClick={() => setCurrentProduct({...currentProduct, variants: currentProduct.variants?.filter((_,idx)=>idx!==i)})} className="text-red-400 hover:text-red-600"><Trash2 className="w-4 h-4"/></button>
                                                 </div>
                                             </div>
@@ -475,11 +470,11 @@ const App: React.FC = () => {
                             )}
 
                             {currentProduct.isPack && (
-                                <div className="bg-amber-50/50 p-6 rounded-[1.5rem] border border-amber-100">
-                                    <h4 className="font-bold text-amber-800 mb-4 text-sm flex items-center gap-2"><Package className="w-4 h-4"/> Productos en Combo</h4>
+                                <div className="bg-amber-50/50 p-5 sm:p-6 rounded-[1.5rem] border border-amber-100">
+                                    <h4 className="font-bold text-amber-800 mb-4 text-[11px] sm:text-sm flex items-center gap-2 uppercase tracking-wider"><Package className="w-4 h-4"/> Productos en Combo</h4>
                                     <div className="relative mb-4">
                                         <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-amber-400 w-4 h-4"/>
-                                        <input className="w-full pl-10 pr-4 py-3 bg-white border border-amber-200 rounded-xl font-bold text-sm outline-none focus:border-amber-500" placeholder="Buscar productos..." value={packSearchTerm} onChange={e => setPackSearchTerm(e.target.value)} />
+                                        <input className="w-full pl-10 pr-4 py-3 bg-white border border-amber-200 rounded-xl font-bold text-xs outline-none focus:border-amber-500" placeholder="Buscar productos..." value={packSearchTerm} onChange={e => setPackSearchTerm(e.target.value)} />
                                         {packSearchSuggestions.length > 0 && (
                                             <div className="absolute top-full left-0 w-full bg-white border border-amber-100 rounded-xl shadow-xl z-50 overflow-hidden mt-1">
                                                 {packSearchSuggestions.map(p => (
@@ -491,11 +486,11 @@ const App: React.FC = () => {
                                     <div className="space-y-2">
                                         {currentProduct.packItems?.map((item, i) => (
                                             <div key={item.productId} className="flex justify-between items-center p-3 bg-white rounded-xl border border-amber-50 shadow-sm">
-                                                <span className="font-bold text-slate-700 text-sm">{item.productName}</span>
-                                                <div className="flex items-center gap-3">
+                                                <span className="font-bold text-slate-700 text-xs truncate max-w-[120px]">{item.productName}</span>
+                                                <div className="flex items-center gap-2">
                                                     <div className="flex items-center bg-slate-100 rounded-lg px-2 py-1">
                                                         <button onClick={() => { const newItems = [...(currentProduct.packItems || [])]; newItems[i].quantity = Math.max(1, newItems[i].quantity - 1); setCurrentProduct({...currentProduct, packItems: newItems}); }} className="text-amber-600 px-1 font-black">-</button>
-                                                        <span className="px-2 text-xs font-black w-6 text-center">{item.quantity}</span>
+                                                        <span className="px-1 text-[10px] font-black w-4 text-center">{item.quantity}</span>
                                                         <button onClick={() => { const newItems = [...(currentProduct.packItems || [])]; newItems[i].quantity += 1; setCurrentProduct({...currentProduct, packItems: newItems}); }} className="text-amber-600 px-1 font-black">+</button>
                                                     </div>
                                                     <button onClick={() => setCurrentProduct({...currentProduct, packItems: currentProduct.packItems?.filter((_,idx)=>idx!==i)})} className="text-red-400 hover:text-red-600"><Trash2 className="w-4 h-4"/></button>
@@ -507,9 +502,9 @@ const App: React.FC = () => {
                             )}
                         </div>
                     </div>
-                    <div className="p-6 border-t border-slate-100 flex justify-end gap-3 bg-slate-50/50">
-                        <button onClick={() => setIsProductModalOpen(false)} className="px-6 py-3 text-slate-500 font-bold hover:bg-slate-100 rounded-xl">Cancelar</button>
-                        <button onClick={handleSaveProduct} className="px-8 py-3 bg-slate-900 text-white rounded-xl font-bold shadow-lg hover:scale-105 active:scale-95 transition-all"><Save className="w-5 h-5 inline-block mr-2"/> Sincronizar Cloud</button>
+                    <div className="p-6 border-t border-slate-100 flex flex-col sm:flex-row justify-end gap-3 bg-slate-50/50 shrink-0">
+                        <button onClick={() => setIsProductModalOpen(false)} className="px-6 py-4 text-slate-500 font-bold hover:bg-slate-100 rounded-xl transition-colors">Cancelar</button>
+                        <button onClick={handleSaveProduct} className="px-8 py-4 bg-slate-900 text-white rounded-xl font-bold shadow-lg active:scale-95 transition-all flex items-center justify-center gap-2"><Save className="w-5 h-5"/> Sincronizar</button>
                     </div>
                 </div>
             </div>
