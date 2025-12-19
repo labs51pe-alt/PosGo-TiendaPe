@@ -16,13 +16,14 @@ import { CashControlModal } from './CashControlModal';
 import { POSView } from './POSView';
 import { SuperAdminView } from './SuperAdminView';
 import { DEFAULT_SETTINGS, CATEGORIES } from '../constants';
-import { Save, Image as ImageIcon, Plus, Check, X, Trash2, Search, Package } from 'lucide-react';
+import { Save, Image as ImageIcon, Plus, Check, X, Trash2, Search, Package, CloudSync, Rocket, Sparkles } from 'lucide-react';
 
 const App: React.FC = () => {
   const [user, setUser] = useState<UserProfile | null>(null);
-  const [view, setView] = useState<ViewState>(ViewState.POS);
+  const [view, setView] = useState<ViewState | null>(null); 
   const [showOnboarding, setShowOnboarding] = useState(false);
   const [loading, setLoading] = useState(true);
+  const [isSyncing, setIsSyncing] = useState(false);
   const initialized = useRef(false);
 
   // Data State
@@ -56,7 +57,11 @@ const App: React.FC = () => {
   const [variantStock, setVariantStock] = useState('');
   const [packSearchTerm, setPackSearchTerm] = useState('');
 
-  // Función de refresco resiliente de datos
+  const packSearchSuggestions = useMemo(() => {
+    if (!packSearchTerm || packSearchTerm.length < 2) return [];
+    return products.filter(p => !p.isPack && p.name.toLowerCase().includes(packSearchTerm.toLowerCase())).slice(0, 5);
+  }, [products, packSearchTerm]);
+
   const refreshAllData = useCallback(async (forcedShiftId?: string | null) => {
       const currentActiveId = forcedShiftId !== undefined ? forcedShiftId : StorageService.getActiveShiftId();
       
@@ -90,44 +95,37 @@ const App: React.FC = () => {
       setActiveShiftId(currentActiveId);
   }, [localShiftCache]);
 
-  // EFECTO DE MONTAJE (Corre una sola vez)
   useEffect(() => {
     const initApp = async () => {
         if (initialized.current) return;
-        setLoading(true);
+        initialized.current = true;
         
+        setLoading(true);
         const savedUser = StorageService.getSession();
+        
         if (savedUser) { 
             setUser(savedUser); 
+            let initialView = ViewState.POS;
+            if (savedUser.role === 'super_admin' || savedUser.id === 'god-mode') initialView = ViewState.SUPER_ADMIN;
+            else if (savedUser.role === 'admin') initialView = ViewState.ADMIN;
             
-            // Establecer vista inicial solo en el primer arranque por rol
-            if (savedUser.role === 'super_admin' || savedUser.id === 'god-mode') setView(ViewState.SUPER_ADMIN);
-            else if (savedUser.role === 'admin') setView(ViewState.ADMIN);
-            else setView(ViewState.POS);
-
-            const sh = await StorageService.getShifts();
-            const activeId = StorageService.getActiveShiftId();
-            if (activeId) {
-                const active = sh.find(s => s.id === activeId);
-                if (active) setLocalShiftCache(active);
-            }
+            setView(initialView);
             await refreshAllData();
         } else {
+             setView(ViewState.POS);
              setProducts(await StorageService.getProducts());
         }
-        
-        initialized.current = true;
-        setLoading(false);
+        // Pequeño delay artificial para que el mensaje se aprecie si la conexión es muy rápida
+        setTimeout(() => setLoading(false), 800);
     };
     initApp();
   }, [refreshAllData]);
 
-  // EFECTO PARA ACTUALIZAR DATOS SIN CAMBIAR LA VISTA
   useEffect(() => {
-      if (initialized.current && user) {
+      if (user && !loading) {
           refreshAllData();
       }
-  }, [refreshTrigger, user, refreshAllData]);
+  }, [refreshTrigger, user]);
 
   const activeShift = useMemo(() => {
       if (!activeShiftId) return null;
@@ -138,16 +136,18 @@ const App: React.FC = () => {
     setLoading(true);
     StorageService.saveSession(loggedInUser);
     setUser(loggedInUser);
+    
+    let nextView = ViewState.POS;
+    if (loggedInUser.role === 'super_admin' || loggedInUser.id === 'god-mode') nextView = ViewState.SUPER_ADMIN;
+    else if (loggedInUser.role === 'admin') nextView = ViewState.ADMIN;
+    
+    setView(nextView);
     await refreshAllData();
     setLoading(false);
-    
-    // Navegación post-login
-    if (loggedInUser.role === 'super_admin' || loggedInUser.id === 'god-mode') setView(ViewState.SUPER_ADMIN);
-    else if (loggedInUser.role === 'admin') setView(ViewState.ADMIN);
-    else setView(ViewState.POS); 
   };
 
   const handleLogout = async () => { 
+      setLoading(true);
       await StorageService.clearSession(); 
       setUser(null); 
       setCart([]); 
@@ -155,7 +155,7 @@ const App: React.FC = () => {
       setLocalShiftCache(null);
       setShifts([]);
       setView(ViewState.POS);
-      initialized.current = false;
+      setLoading(false);
   };
 
   const handleAddToCart = (product: Product, variantId?: string) => { 
@@ -168,10 +168,7 @@ const App: React.FC = () => {
           let selectedVariantName = undefined; 
           if (variantId && product.variants) { 
               const variant = product.variants.find(v => v.id === variantId); 
-              if (variant) { 
-                  finalPrice = variant.price; 
-                  selectedVariantName = variant.name; 
-              } 
+              if (variant) { finalPrice = variant.price; selectedVariantName = variant.name; } 
           } 
           return [...prev, { ...product, price: finalPrice, quantity: 1, selectedVariantId: variantId, selectedVariantName }]; 
       }); 
@@ -191,6 +188,8 @@ const App: React.FC = () => {
 
   const handleCheckout = async (method: any, payments: any[]) => {
       if(!activeShift) { alert("Debes abrir un turno para realizar ventas."); return; }
+      
+      setIsSyncing(true);
       const subtotal = cart.reduce((sum, item) => sum + (item.price * item.quantity), 0);
       const totalDiscount = cart.reduce((sum, item) => sum + ((item.discount || 0) * item.quantity), 0);
       const total = Math.max(0, subtotal - totalDiscount);
@@ -209,101 +208,68 @@ const App: React.FC = () => {
           profit: 0, 
           shiftId: activeShift.id 
       };
-      
-      await StorageService.saveTransaction(transaction);
-      
-      const updatedProducts = products.map(p => { 
-          const cartItems = cart.filter(c => c.id === p.id); 
-          if (cartItems.length === 0) return p; 
-          let newStock = p.stock; 
-          let newVariants = p.variants ? [...p.variants] : []; 
-          cartItems.forEach(c => { 
-              if (c.selectedVariantId && newVariants.length) { 
-                  newVariants = newVariants.map(v => v.id === c.selectedVariantId ? { ...v, stock: v.stock - c.quantity } : v); 
-              } else { 
-                  newStock -= c.quantity; 
-              } 
-          }); 
-          if (p.hasVariants) newStock = newVariants.reduce((sum,v) => sum + v.stock, 0); 
-          return { ...p, stock: newStock, variants: newVariants }; 
-      }); 
-      
-      await StorageService.saveProducts(updatedProducts);
-      setCart([]); 
+
       setTicketType('SALE'); 
       setTicketData(transaction); 
       setShowTicket(true);
-      await refreshAllData();
+      
+      const currentCart = [...cart];
+      setCart([]); 
+
+      try {
+          const updatedProducts = products.map(p => { 
+              const cartItems = currentCart.filter(c => c.id === p.id); 
+              if (cartItems.length === 0) return p; 
+              let newStock = p.stock; 
+              let newVariants = p.variants ? [...p.variants] : []; 
+              cartItems.forEach(c => { 
+                  if (c.selectedVariantId && newVariants.length) { 
+                      newVariants = newVariants.map(v => v.id === c.selectedVariantId ? { ...v, stock: v.stock - c.quantity } : v); 
+                  } else { newStock -= c.quantity; } 
+              }); 
+              if (p.hasVariants) newStock = newVariants.reduce((sum,v) => sum + v.stock, 0); 
+              return { ...p, stock: newStock, variants: newVariants }; 
+          }); 
+
+          await Promise.all([
+              StorageService.saveTransaction(transaction),
+              StorageService.saveProducts(updatedProducts)
+          ]);
+          
+          refreshAllData();
+      } catch (error) {
+          console.error("Error al sincronizar venta:", error);
+      } finally {
+          setIsSyncing(false);
+      }
   };
 
   const handleCashAction = async (action: 'OPEN' | 'CLOSE' | 'IN' | 'OUT', amount: number, description: string) => {
       if (action === 'OPEN') {
           const newId = crypto.randomUUID();
-          const newShift: CashShift = { 
-              id: newId, 
-              startTime: new Date().toISOString(), 
-              startAmount: amount, 
-              status: 'OPEN', 
-              totalSalesCash: 0, 
-              totalSalesDigital: 0 
-          };
-
+          const newShift: CashShift = { id: newId, startTime: new Date().toISOString(), startAmount: amount, status: 'OPEN', totalSalesCash: 0, totalSalesDigital: 0 };
           StorageService.setActiveShiftId(newId);
           setLocalShiftCache(newShift);
           setActiveShiftId(newId);
-
           await StorageService.saveShift(newShift); 
-
-          const move: CashMovement = { 
-              id: crypto.randomUUID(), 
-              shiftId: newId, 
-              type: 'OPEN', 
-              amount, 
-              description: 'Apertura de caja', 
-              timestamp: new Date().toISOString() 
-          }; 
+          const move: CashMovement = { id: crypto.randomUUID(), shiftId: newId, type: 'OPEN', amount, description: 'Apertura de caja', timestamp: new Date().toISOString() }; 
           await StorageService.saveMovement(move); 
           await refreshAllData(newId);
-          
-          // FORZAR PERMANECER EN POS TRAS APERTURA
           setView(ViewState.POS);
-
       } else if (action === 'CLOSE' && activeShift) {
           const closedShift = { ...activeShift, endTime: new Date().toISOString(), endAmount: amount, status: 'CLOSED' as const };
-          
           StorageService.setActiveShiftId(null); 
           setActiveShiftId(null); 
           setLocalShiftCache(null);
-
           await StorageService.saveShift(closedShift); 
-
-          const move: CashMovement = { 
-              id: crypto.randomUUID(), 
-              shiftId: activeShift.id, 
-              type: 'CLOSE', 
-              amount, 
-              description: 'Cierre de caja', 
-              timestamp: new Date().toISOString() 
-          }; 
+          const move: CashMovement = { id: crypto.randomUUID(), shiftId: activeShift.id, type: 'CLOSE', amount, description: 'Cierre de caja', timestamp: new Date().toISOString() }; 
           await StorageService.saveMovement(move);
-
           setTicketType('REPORT'); 
-          setTicketData({ 
-              shift: closedShift, 
-              movements: movements.filter(m => m.shiftId === activeShift.id), 
-              transactions: transactions.filter(t => t.shiftId === activeShift.id) 
-          }); 
+          setTicketData({ shift: closedShift, movements: movements.filter(m => m.shiftId === activeShift.id), transactions: transactions.filter(t => t.shiftId === activeShift.id) }); 
           setShowTicket(true);
           await refreshAllData(null);
       } else if (activeShift) {
-          const move: CashMovement = { 
-              id: crypto.randomUUID(), 
-              shiftId: activeShift.id, 
-              type: action, 
-              amount, 
-              description, 
-              timestamp: new Date().toISOString() 
-          }; 
+          const move: CashMovement = { id: crypto.randomUUID(), shiftId: activeShift.id, type: action, amount, description, timestamp: new Date().toISOString() }; 
           await StorageService.saveMovement(move); 
           await refreshAllData();
       }
@@ -314,17 +280,14 @@ const App: React.FC = () => {
       let pToSave = { ...currentProduct };
       if (pToSave.hasVariants && pToSave.variants) pToSave.stock = pToSave.variants.reduce((acc, v) => acc + (Number(v.stock) || 0), 0);
       
-      const isValidUUID = (id: string) => /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(id);
-      if (!pToSave.id || !isValidUUID(pToSave.id)) pToSave.id = crypto.randomUUID();
+      if (!pToSave.id) pToSave.id = crypto.randomUUID();
 
       if (view === ViewState.SUPER_ADMIN) {
           const result = await StorageService.saveDemoProductToTemplate(pToSave);
           if (result.success) {
               setRefreshTrigger(prev => prev + 1);
               setIsProductModalOpen(false);
-          } else {
-              alert("Error: " + result.error);
-          }
+          } else { alert("Error: " + result.error); }
           return;
       }
 
@@ -353,15 +316,6 @@ const App: React.FC = () => {
       setView(ViewState.PURCHASES);
   };
 
-  const packSearchSuggestions = useMemo(() => {
-    if (!packSearchTerm || packSearchTerm.length < 2) return [];
-    return products.filter(p => 
-        p.id !== currentProduct?.id && 
-        !p.isPack &&
-        (p.name.toLowerCase().includes(packSearchTerm.toLowerCase()) || p.barcode?.includes(packSearchTerm))
-    ).slice(0, 5);
-  }, [packSearchTerm, products, currentProduct]);
-
   const addPackItem = (p: Product) => {
     if (!currentProduct) return;
     const newItem: PackItem = { productId: p.id, productName: p.name, quantity: 1 };
@@ -371,12 +325,48 @@ const App: React.FC = () => {
     setPackSearchTerm('');
   };
 
-  if (loading && products.length === 0) return <div className="h-screen flex items-center justify-center bg-slate-50"><div className="w-10 h-10 border-4 border-indigo-500 border-t-transparent rounded-full animate-spin"></div></div>;
+  if (loading || (user && view === null)) {
+      return (
+        <div className="h-screen flex flex-col items-center justify-center bg-white relative overflow-hidden">
+            {/* Luces de Fondo Dinámicas */}
+            <div className="absolute top-[-10%] right-[-10%] w-[40%] h-[40%] bg-emerald-50 rounded-full blur-[100px] opacity-40 animate-pulse"></div>
+            <div className="absolute bottom-[-10%] left-[-10%] w-[40%] h-[40%] bg-indigo-50 rounded-full blur-[100px] opacity-40 animate-pulse"></div>
+
+            <div className="relative z-10 flex flex-col items-center">
+                {/* Logo con Animación de Rebote */}
+                <div className="w-24 h-24 bg-slate-900 rounded-[2.5rem] flex items-center justify-center shadow-[0_20px_50px_rgba(0,0,0,0.15)] animate-bounce mb-10 border border-white/20">
+                    <Rocket className="w-12 h-12 text-white fill-current" />
+                </div>
+
+                {/* Mensaje Mágico */}
+                <div className="text-center space-y-4 mb-10 px-8">
+                    <div className="flex items-center justify-center gap-2 text-indigo-500 mb-1">
+                        <Sparkles className="w-4 h-4 animate-spin-slow" />
+                        <span className="text-[10px] font-black uppercase tracking-[0.3em]">Cargando Experiencia</span>
+                        <Sparkles className="w-4 h-4 animate-spin-slow" />
+                    </div>
+                    <h2 className="text-2xl font-black text-slate-800 tracking-tight max-w-sm">
+                        Estamos preparando algo <span className="text-transparent bg-clip-text bg-gradient-to-r from-emerald-500 to-indigo-600">mágico</span> para ti y tu negocio...
+                    </h2>
+                </div>
+
+                {/* Barra de Progreso Premium */}
+                <div className="w-64 h-2 bg-slate-100 rounded-full overflow-hidden shadow-inner relative">
+                    <div className="h-full bg-gradient-to-r from-emerald-400 via-emerald-500 to-indigo-500 animate-shimmer absolute inset-0" style={{ width: '100%' }}></div>
+                    <div className="absolute inset-0 bg-gradient-to-r from-transparent via-white/30 to-transparent animate-shimmer"></div>
+                </div>
+
+                <p className="mt-8 text-slate-400 font-black text-[9px] tracking-[0.4em] uppercase opacity-60">Sincronizando con la Nube</p>
+            </div>
+        </div>
+      );
+  }
+
   if (!user) return <Auth onLogin={handleLogin} />;
 
   return (
     <>
-        <Layout currentView={view} onChangeView={setView} settings={settings} user={user} onLogout={handleLogout}>
+        <Layout currentView={view || ViewState.POS} onChangeView={setView} settings={settings} user={user} onLogout={handleLogout}>
             {view === ViewState.POS && <POSView products={products} cart={cart} transactions={transactions} activeShift={activeShift} settings={settings} customers={customers} onAddToCart={handleAddToCart} onUpdateCart={handleUpdateCartQuantity} onRemoveItem={handleRemoveFromCart} onUpdateDiscount={handleUpdateDiscount} onCheckout={handleCheckout} onClearCart={() => setCart([])} onOpenCashControl={() => setShowCashControl(true)} />}
             {view === ViewState.INVENTORY && <InventoryView products={products} settings={settings} transactions={transactions} purchases={purchases} onNewProduct={() => { setCurrentProduct({ id: '', name: '', price: 0, category: CATEGORIES[0], stock: 0, variants: [], packItems: [], images: [], isPack: false, hasVariants: false }); setIsProductModalOpen(true); }} onEditProduct={(p) => { setCurrentProduct({ ...p, variants: p.variants || [], packItems: p.packItems || [] }); setIsProductModalOpen(true); }} onDeleteProduct={async (id) => { if(window.confirm('¿Eliminar producto?')) { await StorageService.deleteDemoProduct(id); await refreshAllData(); } }} onGoToPurchase={handleGoToPurchase} />}
             {view === ViewState.PURCHASES && <PurchasesView products={products} suppliers={suppliers} purchases={purchases} settings={settings} onProcessPurchase={async (pur, updated) => { await StorageService.savePurchase(pur); await StorageService.saveProducts(updated); await refreshAllData(); }} onAddSupplier={async (s) => { await StorageService.saveSupplier(s); await refreshAllData(); }} onRequestNewProduct={(barcode) => { setCurrentProduct({ id: '', name: '', price: 0, category: CATEGORIES[0], stock: 0, variants: [], packItems: [], barcode: barcode || '', images: [], isPack: false, hasVariants: false }); setIsProductModalOpen(true); }} initialSearchTerm={initialPurchaseSearch} onClearInitialSearch={() => setInitialPurchaseSearch('')} />}
@@ -386,19 +376,27 @@ const App: React.FC = () => {
             {view === ViewState.SUPER_ADMIN && <SuperAdminView onNewProduct={() => { setCurrentProduct({ id: '', name: '', price: 0, category: CATEGORIES[0], stock: 0, variants: [], packItems: [], images: [], isPack: false, hasVariants: false }); setIsProductModalOpen(true); }} onEditProduct={(p) => { setCurrentProduct({ ...p, variants: p.variants || [], packItems: p.packItems || [] }); setIsProductModalOpen(true); }} lastUpdated={refreshTrigger} />}
         </Layout>
 
+        {isSyncing && (
+            <div className="fixed top-6 right-6 z-[250] bg-white border border-emerald-100 px-4 py-2 rounded-2xl shadow-xl flex items-center gap-3 animate-fade-in">
+                <div className="w-2 h-2 bg-emerald-500 rounded-full animate-ping"></div>
+                <span className="text-[10px] font-black text-slate-600 uppercase tracking-widest flex items-center gap-2">
+                    Sincronizando Venta...
+                </span>
+            </div>
+        )}
+
         {isProductModalOpen && currentProduct && (
             <div className="fixed inset-0 bg-slate-900/60 backdrop-blur-sm z-[120] flex items-center justify-center p-4">
                 <div className="bg-white rounded-[2rem] shadow-2xl w-full max-w-2xl overflow-hidden max-h-[90vh] flex flex-col animate-fade-in-up">
                     <div className="p-6 border-b border-slate-100 flex justify-between items-center bg-slate-50/50">
                         <div>
-                            <h2 className="font-black text-xl text-slate-800">{currentProduct.id ? 'Editar Producto' : 'Nuevo Producto'}</h2>
-                            {view === ViewState.SUPER_ADMIN && <span className="text-[10px] font-bold bg-amber-100 text-amber-700 px-2 py-0.5 rounded-md mt-1 inline-block">MODO PLANTILLA GLOBAL</span>}
+                            <h2 className="font-black text-xl text-slate-800">{currentProduct.id ? 'Editar Producto Cloud' : 'Nuevo Producto Cloud'}</h2>
+                            <span className="text-[10px] font-bold bg-indigo-100 text-indigo-700 px-2 py-0.5 rounded-md mt-1 inline-block uppercase">Catálogo Global Sincronizado</span>
                         </div>
                         <button onClick={() => setIsProductModalOpen(false)} className="w-8 h-8 rounded-full bg-white border border-slate-200 flex items-center justify-center text-slate-400 hover:text-red-500 transition-colors">✕</button>
                     </div>
                     
                     <div className="p-8 overflow-y-auto custom-scrollbar space-y-6">
-                        {/* Imágenes */}
                         <div>
                             <label className="block text-xs font-bold text-slate-400 uppercase tracking-wider mb-2">Imágenes (Máx 2)</label>
                             <div className="flex gap-4">
@@ -417,7 +415,6 @@ const App: React.FC = () => {
                             </div>
                         </div>
 
-                        {/* Campos Base */}
                         <div className="space-y-4">
                             <div><label className="block text-xs font-bold text-slate-400 mb-1">Nombre</label><input className="w-full p-4 bg-slate-50 border border-slate-200 rounded-2xl font-bold text-lg outline-none focus:border-slate-800" value={currentProduct.name} onChange={e => setCurrentProduct({...currentProduct, name: e.target.value})} /></div>
                             <div><label className="block text-xs font-bold text-slate-400 mb-1">Código de Barras</label><input className="w-full p-4 bg-slate-50 border border-slate-200 rounded-2xl font-bold outline-none" value={currentProduct.barcode || ''} onChange={e => setCurrentProduct({...currentProduct, barcode: e.target.value})} /></div>
@@ -432,29 +429,26 @@ const App: React.FC = () => {
                                 </select>
                             </div>
                             
-                            {/* Switches de Variantes y Packs */}
                             <div className="grid grid-cols-2 gap-4 pt-2">
                                 <label className="flex items-center gap-3 p-4 border border-slate-200 rounded-2xl cursor-pointer hover:bg-slate-50 transition-colors">
                                     <div className={`w-6 h-6 rounded-lg border-2 flex items-center justify-center transition-colors ${currentProduct.hasVariants ? 'bg-indigo-600 border-indigo-600' : 'border-slate-300'}`}>
                                         {currentProduct.hasVariants && <Check className="w-4 h-4 text-white" />}
                                     </div>
                                     <input type="checkbox" className="hidden" checked={currentProduct.hasVariants || false} onChange={e => setCurrentProduct({...currentProduct, hasVariants: e.target.checked, isPack: false})} /> 
-                                    <span className="font-bold text-slate-700 text-sm">Tiene Variantes</span>
+                                    <span className="font-bold text-slate-700 text-sm">Variantes</span>
                                 </label>
-
                                 <label className="flex items-center gap-3 p-4 border border-slate-200 rounded-2xl cursor-pointer hover:bg-slate-50 transition-colors">
                                     <div className={`w-6 h-6 rounded-lg border-2 flex items-center justify-center transition-colors ${currentProduct.isPack ? 'bg-amber-600 border-amber-600' : 'border-slate-300'}`}>
                                         {currentProduct.isPack && <Check className="w-4 h-4 text-white" />}
                                     </div>
                                     <input type="checkbox" className="hidden" checked={currentProduct.isPack || false} onChange={e => setCurrentProduct({...currentProduct, isPack: e.target.checked, hasVariants: false})} /> 
-                                    <span className="font-bold text-slate-700 text-sm">Es Pack / Combo</span>
+                                    <span className="font-bold text-slate-700 text-sm">Combo / Pack</span>
                                 </label>
                             </div>
                             
-                            {/* SECCIÓN VARIANTES */}
                             {currentProduct.hasVariants && (
-                                <div className="bg-indigo-50/50 p-6 rounded-[1.5rem] border border-indigo-100 animate-fade-in">
-                                    <h4 className="font-bold text-indigo-800 mb-4 text-sm flex items-center gap-2"><Plus className="w-4 h-4"/> Gestionar Variantes</h4>
+                                <div className="bg-indigo-50/50 p-6 rounded-[1.5rem] border border-indigo-100">
+                                    <h4 className="font-bold text-indigo-800 mb-4 text-sm">Gestionar Variantes</h4>
                                     <div className="flex gap-2 mb-4">
                                         <input className="flex-[2] p-3 rounded-xl border border-slate-200 text-sm font-bold" placeholder="Ej. Grande" value={variantName} onChange={e => setVariantName(e.target.value)}/>
                                         <input className="flex-1 p-3 rounded-xl border border-slate-200 text-sm font-bold" placeholder="Precio" type="number" value={variantPrice} onChange={e => setVariantPrice(e.target.value)}/>
@@ -462,8 +456,7 @@ const App: React.FC = () => {
                                         <button onClick={() => { 
                                             if(!variantName) return;
                                             const newVar = { id: crypto.randomUUID(), name: variantName, price: parseFloat(variantPrice) || 0, stock: parseFloat(variantStock) || 0 }; 
-                                            const newVars = [...(currentProduct.variants || []), newVar]; 
-                                            setCurrentProduct({ ...currentProduct, variants: newVars }); 
+                                            setCurrentProduct({ ...currentProduct, variants: [...(currentProduct.variants || []), newVar] }); 
                                             setVariantName(''); setVariantPrice(''); setVariantStock(''); 
                                         }} className="bg-indigo-600 text-white p-3 rounded-xl hover:bg-indigo-700"><Plus className="w-5 h-5"/></button>
                                     </div>
@@ -481,22 +474,16 @@ const App: React.FC = () => {
                                 </div>
                             )}
 
-                            {/* SECCIÓN PACKS / COMBOS */}
                             {currentProduct.isPack && (
-                                <div className="bg-amber-50/50 p-6 rounded-[1.5rem] border border-amber-100 animate-fade-in">
-                                    <h4 className="font-bold text-amber-800 mb-4 text-sm flex items-center gap-2"><Package className="w-4 h-4"/> Productos en el Combo</h4>
+                                <div className="bg-amber-50/50 p-6 rounded-[1.5rem] border border-amber-100">
+                                    <h4 className="font-bold text-amber-800 mb-4 text-sm flex items-center gap-2"><Package className="w-4 h-4"/> Productos en Combo</h4>
                                     <div className="relative mb-4">
                                         <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-amber-400 w-4 h-4"/>
-                                        <input 
-                                            className="w-full pl-10 pr-4 py-3 bg-white border border-amber-200 rounded-xl font-bold text-sm outline-none focus:border-amber-500" 
-                                            placeholder="Buscar productos para añadir..." 
-                                            value={packSearchTerm} 
-                                            onChange={e => setPackSearchTerm(e.target.value)} 
-                                        />
+                                        <input className="w-full pl-10 pr-4 py-3 bg-white border border-amber-200 rounded-xl font-bold text-sm outline-none focus:border-amber-500" placeholder="Buscar productos..." value={packSearchTerm} onChange={e => setPackSearchTerm(e.target.value)} />
                                         {packSearchSuggestions.length > 0 && (
                                             <div className="absolute top-full left-0 w-full bg-white border border-amber-100 rounded-xl shadow-xl z-50 overflow-hidden mt-1">
                                                 {packSearchSuggestions.map(p => (
-                                                    <button key={p.id} onClick={() => addPackItem(p)} className="w-full text-left p-3 hover:bg-amber-50 font-bold text-xs border-b border-slate-50 last:border-0">{p.name} <span className="text-slate-400 font-normal ml-2">S/{p.price.toFixed(2)}</span></button>
+                                                    <button key={p.id} onClick={() => addPackItem(p)} className="w-full text-left p-3 hover:bg-amber-50 font-bold text-xs border-b border-slate-50 last:border-0">{p.name}</button>
                                                 ))}
                                             </div>
                                         )}
@@ -504,30 +491,17 @@ const App: React.FC = () => {
                                     <div className="space-y-2">
                                         {currentProduct.packItems?.map((item, i) => (
                                             <div key={item.productId} className="flex justify-between items-center p-3 bg-white rounded-xl border border-amber-50 shadow-sm">
-                                                <div className="flex items-center gap-2">
-                                                    <span className="font-bold text-slate-700 text-sm">{item.productName}</span>
-                                                </div>
+                                                <span className="font-bold text-slate-700 text-sm">{item.productName}</span>
                                                 <div className="flex items-center gap-3">
                                                     <div className="flex items-center bg-slate-100 rounded-lg px-2 py-1">
-                                                        <button onClick={() => {
-                                                            const newItems = [...(currentProduct.packItems || [])];
-                                                            newItems[i].quantity = Math.max(1, newItems[i].quantity - 1);
-                                                            setCurrentProduct({...currentProduct, packItems: newItems});
-                                                        }} className="text-amber-600 px-1 font-black">-</button>
+                                                        <button onClick={() => { const newItems = [...(currentProduct.packItems || [])]; newItems[i].quantity = Math.max(1, newItems[i].quantity - 1); setCurrentProduct({...currentProduct, packItems: newItems}); }} className="text-amber-600 px-1 font-black">-</button>
                                                         <span className="px-2 text-xs font-black w-6 text-center">{item.quantity}</span>
-                                                        <button onClick={() => {
-                                                            const newItems = [...(currentProduct.packItems || [])];
-                                                            newItems[i].quantity += 1;
-                                                            setCurrentProduct({...currentProduct, packItems: newItems});
-                                                        }} className="text-amber-600 px-1 font-black">+</button>
+                                                        <button onClick={() => { const newItems = [...(currentProduct.packItems || [])]; newItems[i].quantity += 1; setCurrentProduct({...currentProduct, packItems: newItems}); }} className="text-amber-600 px-1 font-black">+</button>
                                                     </div>
                                                     <button onClick={() => setCurrentProduct({...currentProduct, packItems: currentProduct.packItems?.filter((_,idx)=>idx!==i)})} className="text-red-400 hover:text-red-600"><Trash2 className="w-4 h-4"/></button>
                                                 </div>
                                             </div>
                                         ))}
-                                        {(!currentProduct.packItems || currentProduct.packItems.length === 0) && (
-                                            <p className="text-center text-[10px] text-amber-400 py-2 italic font-medium">Añade productos para crear el combo</p>
-                                        )}
                                     </div>
                                 </div>
                             )}
@@ -535,7 +509,7 @@ const App: React.FC = () => {
                     </div>
                     <div className="p-6 border-t border-slate-100 flex justify-end gap-3 bg-slate-50/50">
                         <button onClick={() => setIsProductModalOpen(false)} className="px-6 py-3 text-slate-500 font-bold hover:bg-slate-100 rounded-xl">Cancelar</button>
-                        <button onClick={handleSaveProduct} className="px-8 py-3 bg-slate-900 text-white rounded-xl font-bold shadow-lg hover:scale-105 active:scale-95 transition-all"><Save className="w-5 h-5 inline-block mr-2"/> Guardar</button>
+                        <button onClick={handleSaveProduct} className="px-8 py-3 bg-slate-900 text-white rounded-xl font-bold shadow-lg hover:scale-105 active:scale-95 transition-all"><Save className="w-5 h-5 inline-block mr-2"/> Sincronizar Cloud</button>
                     </div>
                 </div>
             </div>
