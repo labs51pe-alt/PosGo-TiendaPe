@@ -23,7 +23,7 @@ const isDemo = () => {
     if (!session) return true;
     try {
         const user = JSON.parse(session);
-        return user.id === 'test-user-demo' || user.email?.endsWith('@demo.posgo');
+        return user.id === 'test-user-demo' || user.email?.endsWith('@demo.posgo') || user.role === 'super_admin' || user.id === 'god-mode';
     } catch {
         return true;
     }
@@ -49,7 +49,7 @@ const getStoreId = async (): Promise<string> => {
 export const StorageService = {
   saveSession: (user: UserProfile) => {
       localStorage.setItem(KEYS.SESSION, JSON.stringify(user));
-      cachedStoreId = null; // Forzar re-calculo del storeId al cambiar sesión
+      cachedStoreId = null; 
   },
   getSession: (): UserProfile | null => {
     const s = localStorage.getItem(KEYS.SESSION);
@@ -92,86 +92,68 @@ export const StorageService = {
       await supabase.from('stores').delete().eq('id', storeId);
   },
 
-  // Template Management (Super Admin)
-  getDemoTemplate: async (forceCloud = true): Promise<Product[]> => {
-      try {
-          const { data: productsData, error: prodError } = await supabase
-              .from('products')
-              .select('*')
-              .eq('store_id', DEMO_TEMPLATE_ID);
-          
-          if (!prodError && productsData) {
-              const { data: imagesData } = await supabase
-                  .from('product_images')
-                  .select('*')
-                  .eq('store_id', DEMO_TEMPLATE_ID);
-
-              return productsData.map((p: any) => {
-                  const prodImages = imagesData 
-                      ? imagesData.filter((img: any) => img.product_id === p.id).map((img: any) => img.image_data)
-                      : [];
-                  let variants = Array.isArray(p.variants) ? p.variants : [];
-                  return {
-                      id: p.id,
-                      name: p.name,
-                      price: Number(p.price),
-                      category: p.category,
-                      stock: Number(p.stock),
-                      barcode: p.barcode,
-                      hasVariants: variants.length > 0, 
-                      variants: variants,
-                      images: prodImages 
-                  };
-              });
-          }
-      } catch (e) {
-          console.error("Error fetching cloud template:", e);
-      }
-      return MOCK_PRODUCTS;
+  getDemoTemplate: async (force = false): Promise<Product[]> => {
+    const { data: productsData } = await supabase.from('products').select('*').eq('store_id', DEMO_TEMPLATE_ID).order('name', { ascending: true });
+    if (!productsData) return [];
+    
+    const { data: imagesData } = await supabase.from('product_images').select('*').eq('store_id', DEMO_TEMPLATE_ID);
+    
+    return productsData.map((p: any) => {
+        const prodImages = imagesData ? imagesData.filter((img: any) => img.product_id === p.id).map((img: any) => img.image_data) : [];
+        let variants = Array.isArray(p.variants) ? p.variants : [];
+        return { 
+            id: p.id, 
+            name: p.name, 
+            price: Number(p.price), 
+            category: p.category, 
+            stock: Number(p.stock), 
+            barcode: p.barcode, 
+            hasVariants: variants.length > 0, 
+            variants: variants, 
+            images: prodImages,
+            cost: Number(p.cost || 0)
+        };
+    });
   },
 
-  saveDemoProductToTemplate: async (product: Product): Promise<{ success: boolean; error?: string }> => {
+  saveDemoProductToTemplate: async (product: Product) => {
       try {
-          const storeId = DEMO_TEMPLATE_ID;
-          await supabase.from('stores').upsert({ id: storeId, settings: DEFAULT_SETTINGS });
-
-          const { error: prodError } = await supabase.from('products').upsert({
-              id: product.id,
-              name: product.name,
-              price: product.price,
-              stock: product.stock,
-              category: product.category,
-              barcode: product.barcode,
+          await supabase.from('products').upsert({ 
+              id: product.id, 
+              name: product.name, 
+              price: product.price, 
+              stock: product.stock, 
+              category: product.category, 
+              barcode: product.barcode, 
               variants: product.variants || [], 
-              store_id: storeId
+              cost: product.cost || 0,
+              store_id: DEMO_TEMPLATE_ID 
           });
-          if (prodError) throw prodError;
-
           if (product.images) {
-              await supabase.from('product_images').delete().eq('product_id', product.id).eq('store_id', storeId);
+              await supabase.from('product_images').delete().eq('product_id', product.id).eq('store_id', DEMO_TEMPLATE_ID);
               if (product.images.length > 0) {
-                  const imageInserts = product.images.map(imgData => ({
-                      product_id: product.id,
+                  const imageInserts = product.images.map(imgData => ({ 
+                      product_id: product.id, 
                       image_data: imgData, 
-                      store_id: storeId
+                      store_id: DEMO_TEMPLATE_ID 
                   }));
                   await supabase.from('product_images').insert(imageInserts);
               }
           }
-
           return { success: true };
-      } catch (err: any) {
-          return { success: false, error: err.message };
+      } catch (error: any) {
+          return { success: false, error: error.message };
       }
   },
 
   // Products
   getProducts: async (): Promise<Product[]> => {
     const storeId = await getStoreId();
-    if(!storeId) return isDemo() ? await StorageService.getDemoTemplate() : [];
-
-    const { data: productsData } = await supabase.from('products').select('*').eq('store_id', storeId);
-    if (!productsData) return [];
+    const { data: productsData } = await supabase.from('products').select('*').eq('store_id', storeId).order('name', { ascending: true });
+    
+    if (!productsData || productsData.length === 0) {
+        return await StorageService.getDemoTemplate();
+    }
     
     const { data: imagesData } = await supabase.from('product_images').select('*').eq('store_id', storeId);
     
@@ -187,7 +169,8 @@ export const StorageService = {
             barcode: p.barcode, 
             hasVariants: variants.length > 0, 
             variants: variants, 
-            images: prodImages 
+            images: prodImages,
+            cost: Number(p.cost || 0)
         };
     });
   },
@@ -202,6 +185,7 @@ export const StorageService = {
           category: product.category, 
           barcode: product.barcode, 
           variants: product.variants || [], 
+          cost: product.cost || 0,
           store_id: storeId 
       });
       if (product.images) {
@@ -228,6 +212,7 @@ export const StorageService = {
               category: p.category, 
               barcode: p.barcode, 
               variants: p.variants || [], 
+              cost: p.cost || 0,
               store_id: storeId 
           });
       }
@@ -267,7 +252,17 @@ export const StorageService = {
 
   savePurchase: async (p: Purchase) => {
     const storeId = await getStoreId();
-    await supabase.from('purchases').insert({ ...p, store_id: storeId });
+    const { error } = await supabase.from('purchases').insert({ ...p, store_id: storeId });
+    if (error) console.error("Error saving purchase:", error);
+  },
+
+  updatePurchase: async (p: Purchase) => {
+    const storeId = await getStoreId();
+    const { error } = await supabase.from('purchases').update({ 
+        status: p.status, 
+        received: p.received 
+    }).eq('id', p.id).eq('store_id', storeId);
+    if (error) console.error("Error updating purchase:", error);
   },
 
   // People
